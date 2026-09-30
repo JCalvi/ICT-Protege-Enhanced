@@ -4,6 +4,12 @@ All notable changes to this fork will be documented in this file.
 
 This project is forked from the original [`caboose014/ICT-Protege-Home-Assistant`](https://github.com/caboose014/ICT-Protege-Home-Assistant) integration by **caboose014**. Earlier history belongs to the upstream project; entries below document changes made in this fork.
 
+## 2.0.1 - 2026-09-30
+
+### Fixed
+- Published the completed v2 entity-management implementation under a new patch release after the initial `v2.0.0` tag was created before all source updates had landed.
+- No additional entity-ID migration is introduced; `v2.0.1` is the release to install for the completed v2 workflow.
+
 ## 2.0.0 - 2026-09-30
 
 ### Changed
