@@ -8,10 +8,14 @@ A custom Home Assistant integration for **ICT Protege WX** and **Protege GX** sy
 
 > **Fork attribution:** This repository is forked from the original [caboose014/ICT-Protege-Home-Assistant](https://github.com/caboose014/ICT-Protege-Home-Assistant) project by **caboose014**. The original author created the integration and protocol implementation this fork is based on. This fork is maintained by **JCalvi** and adds fixes and behaviour changes discovered while testing against Protege WX.
 
-The integration connects directly to the ICT Controller's Automation and Control service, normally on **TCP port 21000**, for real-time status and control of Doors, Areas, Inputs, and Outputs.
+The integration connects directly to the ICT controller's **Automation and Control** service, normally on **TCP port 21000**, for real-time status and control of Doors, Areas, Inputs and Outputs.
+
+On **Protege WX**, the integration can also use a separate **WX web operator account** to read the controller database over HTTPS. This second login is what allows Home Assistant to obtain the actual programmed record names and the complete record lists used by the entity manager.
 
 ## Features
 
+* **Single Home Assistant device**
+  * All configured Protege entities are grouped under one device: **ICT Protege Controller**.
 * **🚪 Doors**
   * Lock and unlock controls.
   * Real-time door contact and lock status.
@@ -27,10 +31,17 @@ The integration connects directly to the ICT Controller's Automation and Control
   * Supports input bypass/unbypass controls.
 * **💡 Outputs**
   * Turn PGMs and other outputs On/Off.
-* **🔎 Device scanning**
-  * Scans Protege database record IDs starting at **ID 0**.
-  * On Protege WX, optional web operator credentials allow the scanner to retrieve the actual programmed names, e.g. `Roller Pedestrian Door` instead of `Door 1`.
-  * WX name lookup also handles sparse database IDs more reliably because the programmed record list is used as the scan source.
+* **🧭 Manage Protege Entities**
+  * One central menu for search, selection/removal, manual addition and renaming.
+  * Four multi-select lists for Doors, Areas, Inputs and Outputs.
+  * Existing configured records are preselected.
+  * Searching does **not** automatically enable every discovered record.
+  * Clearing a selected record removes it from Home Assistant after confirmation.
+  * Manual addition remains available when discovery cannot find a record.
+* **🔎 Protege WX database discovery**
+  * With WX web operator credentials configured, Home Assistant reads the controller's actual programmed record lists and names.
+  * Sparse database IDs are handled correctly because discovery comes from the WX database rather than sequential status probing.
+  * Without WX database access, the integration can fall back to Automation Service probing, but that fallback is intentionally best-effort and should not be treated as an authoritative inventory of a WX controller.
 
 See [CHANGELOG.md](CHANGELOG.md) for version history.
 
@@ -55,13 +66,43 @@ Recommended settings:
 | **Encryption Level** | `None` | Currently supported mode |
 | **Checksum Type** | `8 Bit Sum` | Required for protocol matching |
 | **Numbers are Big Endian** | Off | Integration uses little-endian IDs |
-| **Allow Status Requests When Not Logged In** | On | Allows status monitoring |
+| **Allow Status Requests When Not Logged In** | On | Allows read-only status requests without a service login |
 | **Ack Commands** | On | Recommended |
 | **Expect Ack For Status Monitoring** | Off | Recommended |
 
 After creating the service, verify that it is running under **Monitoring → Services**. A newly created service can also be started manually from there without rebooting the controller.
 
 > **Important:** The port is `21000`, not `2100`.
+
+---
+
+## 🔐 Two Separate Credentials
+
+Protege WX users should understand that this integration can use **two completely separate authentication paths**.
+
+| Credential | Used for | Required? |
+| :--- | :--- | :--- |
+| **Automation Service PIN** | Door/area/output control over TCP port 21000. Status requests use the Automation and Control service as well. | Required for normal integration setup and authenticated control commands. |
+| **Protege WX Web Operator username/password** | Read-only HTTPS database lookup for programmed names and complete Door/Area/Input/Output record lists. | Strongly recommended on WX. Required if you want reliable WX database enumeration and actual programmed names. |
+
+The **Service PIN is not the WX web password**, and the WX web operator account is not used to unlock doors, arm areas or switch outputs.
+
+### Why the WX operator account matters
+
+The Automation and Control protocol is excellent for live status and control, but it is not a reliable database-enumeration interface. A fallback scan can probe record IDs and ask whether something responds, but it may miss sparse records and should not be considered a complete inventory of a WX database.
+
+The WX web operator login lets the integration query the controller's local read-only database list endpoints instead. That gives Home Assistant:
+
+* the actual programmed names, such as `Front Entry` instead of `Door 0`;
+* the complete set of programmed Doors, Areas, Inputs and Outputs;
+* correct handling of sparse IDs, for example Areas at IDs `0`, `16`, `17`, `18`, `19` and `20`;
+* a much better source list for **Manage Protege Entities**.
+
+For a Protege WX installation, configuring this account is therefore the recommended setup. If you omit it, the integration still works for configured entities, but **Search / Refresh Controller** falls back to Automation Service probing and discovered counts/names may be incomplete or generic.
+
+The WX credentials are only sent to the local controller's HTTPS interface and are used for database/name lookup. The integration closes the API session after retrieving the requested metadata.
+
+Once a selected record's programmed name has been saved in the Home Assistant configuration, that saved name remains available even if WX lookup is temporarily unavailable. WX access is needed again when you want to refresh the database, discover changes or retrieve updated programmed names.
 
 ---
 
@@ -87,27 +128,110 @@ After creating the service, verify that it is running under **Monitoring → Ser
 
 ---
 
-## 🔧 Configuration
+## 🔧 Initial Configuration
 
 1. Go to **Settings → Devices & Services → Add Integration**.
 2. Search for **ICT Protege Automation**.
 3. Enter:
    * **Host:** IP address of the ICT controller.
    * **Port:** `21000` unless you deliberately configured another port.
-   * **Service PIN:** A valid Protege **user PIN**.
-   * **WX Web Operator Username / Password:** Optional. These are only used for read-only programmed-name lookup during scans on Protege WX.
+   * **Service PIN:** A valid Protege user PIN for the Automation and Control service.
 
-The Service PIN is a Protege user PIN, not the Protege WX web login password. It is used for Automation and Control monitoring and commands. The user must have the appropriate access level/permissions for any doors, areas or outputs Home Assistant is expected to control.
+The Protege user associated with that PIN must have the appropriate access level/permissions for any doors, areas or outputs Home Assistant is expected to control.
 
-The optional WX web operator credentials are separate from the Service PIN. They are used only to authenticate to the controller's HTTPS `PRT_CTRL_DIN_ISAPI.dll` interface so the integration can read record lists and names during scanning. If they are omitted or authentication fails, scanning falls back to the Automation Service-only behaviour and generic names.
+### Configure Protege WX Name Lookup
 
-Existing installations can add or change the optional WX credentials under:
+For Protege WX, after creating the integration entry go to:
 
-**Settings → Devices & Services → ICT Protege Automation → Configure → Edit Connection Settings**
+**Settings → Devices & Services → ICT Protege Automation → Configure → Configure WX Name Lookup**
+
+Enter a valid **Protege WX web operator username and password**.
+
+This account must be able to log in to the controller's local WX web interface. It is used only for read-only database/name lookup; it does not replace the Automation Service PIN.
+
+When editing these settings later:
+
+* leave the password blank to keep the saved password;
+* clear the username to disable WX name lookup.
 
 ---
 
-## 🚪 Door behaviour
+## 🧭 Manage Protege Entities
+
+Entity configuration is now centred on:
+
+**Settings → Devices & Services → ICT Protege Automation → Configure → Manage Protege Entities**
+
+The menu contains:
+
+* **Search / Refresh Controller**
+* **Select / Remove Entities**
+* **Manually Add Entity**
+* **Rename Entity**
+
+### Search / Refresh Controller
+
+On a Protege WX system with a working WX operator login, this reads the controller's WX database and retrieves the complete available record sets and programmed names for:
+
+```text
+Doors
+Areas
+Inputs
+Outputs / PGMs
+```
+
+After the search, Home Assistant opens the selection screen. **Newly discovered records are not automatically enabled.**
+
+The source line tells you which discovery method was used, for example:
+
+```text
+Source: WX database search complete (6 doors, 6 areas, 63 inputs, 41 outputs).
+```
+
+If WX lookup is unavailable, the source line explicitly shows an Automation Service fallback instead.
+
+### Select / Remove Entities
+
+The selection screen has four multi-select sections:
+
+```text
+Doors
+Areas
+Inputs
+Outputs
+```
+
+Existing configured records are preselected.
+
+* Select a new record to expose it in Home Assistant.
+* Leave an existing record selected to keep it.
+* Clear an existing record to remove its Home Assistant entities.
+* Removals require a confirmation step.
+* Nothing is deleted from the Protege controller.
+
+Entity identity is based on **record type + Protege database ID**, not the display name. Renaming a record therefore does not change its Home Assistant unique ID.
+
+### Manually Add Entity
+
+Use **Manually Add Entity** when discovery does not provide the required record, particularly on GX or unusual configurations.
+
+Choose:
+
+* Record Type: Door / Area / Input / Output
+* Database ID
+* Optional custom Home Assistant name
+
+The manually added record then behaves like any other selected record.
+
+### Rename Entity
+
+**Rename Entity** is also inside **Manage Protege Entities**.
+
+A custom Home Assistant name is stored separately from the programmed Protege name. Clearing the custom name returns the entity to the saved/programmed Protege name.
+
+---
+
+## 🚪 Door Behaviour
 
 Each configured door creates a Home Assistant lock entity and a contact binary sensor.
 
@@ -129,33 +253,15 @@ This is intentional: doors controlled by Protege area/schedule rules can immedia
 
 ---
 
-## 🔎 Finding Device IDs and Names
+## 🔎 Protege Record IDs and WX Names
 
 The integration uses Protege **database record IDs** unless the controller has explicitly been configured with `ACPUseDisplayOrder = true`.
 
-### Device scanner
+Database ID `0` is valid and is commonly the first record.
 
-The scanner starts at **database ID 0**, which is valid in Protege and is commonly the first door/area/input record.
+### Protege WX read-only database API
 
-With Protege WX web operator credentials configured, the scanner first obtains the controller's programmed record list and names through the read-only DLL API. For example, a door discovered as database ID `1` can be created as:
-
-```text
-Roller Pedestrian Door
-```
-
-instead of:
-
-```text
-Door 1
-```
-
-If an existing item still has the generic name created by an earlier scan, rescanning can replace that generic name with the programmed WX name. Names that have been manually edited in Home Assistant are preserved.
-
-Using the WX record list also avoids the normal five-consecutive-missing-ID limitation for sparse WX databases. Without WX credentials, GX systems and WX systems fall back to the Automation Service-only scanner, which stops after five consecutive missing IDs.
-
-### Protege WX read-only API
-
-The name lookup uses the controller's local HTTPS DLL API. The same read-only list can be viewed manually while authenticated to WX, for example:
+When WX Name Lookup is configured, the integration uses the controller's local HTTPS DLL API to retrieve record lists and names. The equivalent list can be viewed manually while authenticated to WX, for example:
 
 ```text
 https://CONTROLLER/PRT_CTRL_DIN_ISAPI.dll?Request&Type=List&SubType=GXT_DOORS_TBL
@@ -170,7 +276,7 @@ GXT_INPUTS_TBL   Inputs / Sensors
 GXT_PGMS_TBL     Outputs / PGMs
 ```
 
-These `Request&Type=List` operations are read-only. The integration uses ICT's documented HTTPS server-side operator authentication and closes the API session after the scan metadata has been retrieved.
+These `Request&Type=List` operations are used only for metadata discovery. Status monitoring and control continue to use the Automation and Control service.
 
 ### Display-order mode
 
@@ -193,12 +299,28 @@ Otherwise use the actual Protege database record IDs.
 * Confirm the configured value is a valid Protege user PIN.
 * Confirm that user has an access level permitting the intended controls.
 
-**WX scan still shows `Door 1`, `Area 2`, etc.**
+**Protege WX web login failed**
 
-* Add the Protege WX web operator username and password under **Edit Connection Settings**.
-* Confirm those credentials can log in to the controller's WX web interface.
-* Rescan the devices. Generic names from previous scans will be replaced with the programmed WX names; manually renamed items are left unchanged.
-* If name lookup fails, the integration deliberately falls back to generic names rather than failing the scan.
+* Confirm the username/password can log in to the controller's normal local Protege WX web interface.
+* Remember this is a **WX web operator account**, not the Automation Service PIN.
+* Re-enter it under **Configure → Configure WX Name Lookup**.
+* A blank password means "keep the saved password"; clear the username if you intentionally want to disable WX lookup.
+
+**Search says `Automation Service fallback (WX lookup not configured)`**
+
+No WX web operator credentials are currently saved. Configure **WX Name Lookup** if you want programmed names and authoritative WX database record lists.
+
+**Search says `Automation Service fallback (WX lookup unavailable)`**
+
+WX credentials are saved, but the HTTPS database lookup failed. Check the WX login and then run **Search / Refresh Controller** again.
+
+**Fallback search shows generic names or unexpected counts**
+
+The Automation Service fallback is only a best-effort status probe; it is not the authoritative WX database inventory. Configure a working WX operator login and repeat **Search / Refresh Controller**. The source line should then begin with:
+
+```text
+Source: WX database search complete (...)
+```
 
 **Contacts work but door control does not**
 
@@ -206,7 +328,7 @@ Status requests can be permitted without login, while door control requires auth
 
 **Door IDs appear offset by one**
 
-Older versions of the integration scanned from ID `1` and therefore missed database ID `0`. Version 1.8.0 and later scan from ID `0`.
+Older versions of the integration scanned from ID `1` and therefore missed database ID `0`. Current versions use database ID `0` correctly.
 
 **Inputs or doors appear to use incorrect IDs**
 
