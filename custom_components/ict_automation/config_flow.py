@@ -45,7 +45,7 @@ RECORD_SPECS = (
 
 
 class ICTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    VERSION = 2
+    VERSION = 1
 
     async def async_step_user(self, user_input=None):
         if user_input is not None:
@@ -108,12 +108,9 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         )
 
     def _save_options(self, new_options=None):
+        """Stage options for the standard OptionsFlow create-entry save."""
         if new_options is not None:
             self.options = new_options
-        self.hass.config_entries.async_update_entry(
-            self._config_entry,
-            options=self.options,
-        )
 
     async def async_step_init(self, user_input=None):
         return self.async_show_menu(
@@ -253,7 +250,6 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         if not self._pending_diff:
             return ""
         lines = []
-        pending = self._pending_options or {}
         for key, prefix in RECORD_SPECS:
             removed = sorted(self._pending_diff.get(key, {}).get("removed", set()))
             old = self._normalized_records(key)
@@ -496,7 +492,11 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         found = set(selected_ids(current))
 
         if name_map:
-            candidates = [record_id for record_id in sorted(name_map) if 0 <= record_id <= limit]
+            candidates = [
+                record_id
+                for record_id in sorted(name_map)
+                if 0 <= record_id <= limit
+            ]
             for record_id in candidates:
                 if await client.check_exists(group, record_id):
                     found.add(record_id)
@@ -615,7 +615,10 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             step_id="configure_wx_names",
             data_schema=vol.Schema(
                 {
-                    vol.Optional(CONF_WX_USERNAME, default=self.data.get(CONF_WX_USERNAME, "")): str,
+                    vol.Optional(
+                        CONF_WX_USERNAME,
+                        default=self.data.get(CONF_WX_USERNAME, ""),
+                    ): str,
                     vol.Optional(CONF_WX_PASSWORD, default=""): selector.TextSelector(
                         selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
                     ),
