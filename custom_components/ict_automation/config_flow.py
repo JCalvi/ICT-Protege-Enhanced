@@ -97,6 +97,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         self._manage_name_maps = {key: {} for key, *_ in RECORD_SPECS}
         self._manage_source = "Configured records only"
         self._manage_authoritative = False
+        self._wx_lookup_mode = None
         self._pending_options = None
         self._pending_diff = None
 
@@ -141,14 +142,13 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         )
 
     async def _get_wx_name_maps(self):
+        """Try Protege WX database list lookup, anonymously first."""
         username = str(self.data.get(CONF_WX_USERNAME, "")).strip()
         password = str(self.data.get(CONF_WX_PASSWORD, ""))
-        if not username or not password:
-            return {}
-
         api = ProtegeWXAPI(self.data[CONF_HOST], username, password)
+
         try:
-            return await api.fetch_name_maps(
+            result = await api.fetch_name_maps(
                 {
                     CONF_DOORS: "GXT_DOORS_TBL",
                     CONF_AREAS: "GXT_AREAS_TBL",
@@ -156,9 +156,12 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                     CONF_OUTPUTS: "GXT_PGMS_TBL",
                 }
             )
+            self._wx_lookup_mode = api.last_access_mode
+            return result
         except Exception as err:
+            self._wx_lookup_mode = None
             _LOGGER.warning(
-                "Could not retrieve Protege WX names; using Automation Service scan: %s",
+                "Could not retrieve Protege WX database lists; using Automation Service scan: %s",
                 err,
             )
             return {}
@@ -209,15 +212,18 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         discovered = {}
 
         if name_maps:
-            # WX database list results are authoritative record lists. Do not
-            # revalidate them with Automation Service status requests: some
-            # valid records (especially areas) do not answer the existence
-            # probe even though they are present in the WX database.
+            # The WX database list is authoritative whether it was available
+            # anonymously or required the optional operator fallback login.
             for key, _prefix, _group, _default_limit in RECORD_SPECS:
                 discovered[key] = {
                     int(record_id) for record_id in name_maps.get(key, {})
                 }
-            source_name = "WX database"
+            if self._wx_lookup_mode == "anonymous":
+                source_name = "WX database (anonymous read-only lookup)"
+            elif self._wx_lookup_mode == "operator":
+                source_name = "WX database (operator login)"
+            else:
+                source_name = "WX database"
             self._manage_authoritative = True
         else:
             client, temporary = await self._get_scan_client()
@@ -245,9 +251,15 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
 
             self._manage_authoritative = False
             if wx_configured:
-                source_name = "Automation Service fallback (WX lookup unavailable)"
+                source_name = (
+                    "Automation Service fallback "
+                    "(anonymous WX lookup and operator fallback unavailable)"
+                )
             else:
-                source_name = "Automation Service fallback (WX lookup not configured)"
+                source_name = (
+                    "Automation Service fallback "
+                    "(anonymous WX database lookup unavailable)"
+                )
 
         self._manage_discovered = discovered
         self._manage_name_maps = {
@@ -612,6 +624,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         )
 
     async def async_step_configure_wx_names(self, user_input=None):
+        """Configure optional operator credentials used only as WX lookup fallback."""
         errors = {}
         if user_input is not None:
             username = str(user_input.get(CONF_WX_USERNAME, "")).strip()
@@ -633,10 +646,12 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             else:
                 try:
                     api = ProtegeWXAPI(merged[CONF_HOST], username, password)
-                    await api.fetch_name_maps({CONF_DOORS: "GXT_DOORS_TBL"})
+                    valid = await api.validate_operator()
+                    if not valid:
+                        raise RuntimeError("operator authentication failed")
                 except Exception as err:
                     _LOGGER.warning(
-                        "Protege WX web login/name lookup failed: %s", err
+                        "Protege WX optional operator login failed: %s", err
                     )
                     errors["base"] = "wx_auth"
                 else:
