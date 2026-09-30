@@ -1,0 +1,116 @@
+import hashlib
+import logging
+from urllib.parse import unquote_plus
+
+import aiohttp
+
+_LOGGER = logging.getLogger(__name__)
+
+
+class ProtegeWXAPI:
+    """Small HTTPS client used only to retrieve Protege WX record names."""
+
+    def __init__(self, host: str, username: str, password: str):
+        self.host = host.strip()
+        self.username = username
+        self.password = password
+        self._session = None
+
+    @staticmethod
+    def _sha1(value: str) -> str:
+        return hashlib.sha1(value.encode("utf-8")).hexdigest().upper()
+
+    @staticmethod
+    def _xor_fn(value: str, number: int) -> str:
+        """Match ICT's documented XOR helper for WX operator authentication."""
+        number_bytes = [
+            (number >> 0) & 0xFF,
+            (number >> 8) & 0xFF,
+            (number >> 16) & 0xFF,
+            (number >> 24) & 0xFF,
+        ]
+        return "".join(
+            f"{((ord(char) & 0xFF) ^ number_bytes[index % 4]):02X}"
+            for index, char in enumerate(value)
+        )
+
+    async def _request(self, parameters: str) -> str:
+        url = f"https://{self.host}/PRT_CTRL_DIN_ISAPI.dll?{parameters}"
+        async with self._session.get(url, ssl=False) as response:
+            if response.status != 200:
+                raise RuntimeError(f"WX API returned HTTP {response.status}")
+            return (await response.text()).strip()
+
+    async def _login(self) -> bool:
+        first_random_text = await self._request(
+            "Command&Type=Session&SubType=InitSession"
+        )
+        try:
+            first_random = int(first_random_text)
+        except ValueError:
+            _LOGGER.debug("WX API InitSession returned unexpected data: %s", first_random_text)
+            return False
+
+        password_hash = hashlib.sha1(self.password.encode("utf-8")).hexdigest().lower()
+        hash_xor_username = self._sha1(
+            self._xor_fn(self.username, first_random + 1)
+        )
+        hash_xor_password = self._sha1(
+            self._xor_fn(password_hash, first_random)
+        )
+
+        result = await self._request(
+            "Command&Type=Session&SubType=CheckPasswordServer"
+            f"&Name={hash_xor_username}&Password={hash_xor_password}"
+        )
+        return not result.upper().startswith("FAIL")
+
+    async def _logout(self) -> None:
+        try:
+            await self._request("Command&Type=Session&SubType=CloseSession")
+        except Exception:
+            pass
+
+    @staticmethod
+    def _parse_name_list(response: str) -> dict[int, str]:
+        names = {}
+        if not response or response.upper().startswith("FAIL") or "<html" in response.lower():
+            return names
+
+        for part in response.split("&"):
+            if "=" not in part:
+                continue
+            key, value = part.split("=", 1)
+            try:
+                record_id = int(unquote_plus(key))
+            except ValueError:
+                continue
+            name = unquote_plus(value).strip()
+            if name:
+                names[record_id] = name
+        return names
+
+    async def fetch_name_maps(self, tables: dict[str, str]) -> dict[str, dict[int, str]]:
+        """Return record-name maps for the requested WX database tables."""
+        timeout = aiohttp.ClientTimeout(total=10)
+        cookie_jar = aiohttp.CookieJar(unsafe=True)
+
+        async with aiohttp.ClientSession(
+            timeout=timeout,
+            cookie_jar=cookie_jar,
+        ) as session:
+            self._session = session
+            if not await self._login():
+                raise RuntimeError("WX API operator authentication failed")
+
+            try:
+                result = {}
+                for key, table in tables.items():
+                    response = await self._request(
+                        f"Request&Type=List&SubType={table}"
+                    )
+                    result[key] = self._parse_name_list(response)
+                return result
+            finally:
+                await self._logout()
+                self._session = None
