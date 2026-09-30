@@ -1,15 +1,20 @@
-import logging
 from homeassistant.components.lock import LockEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import callback
-from .const import DOMAIN, CONF_DOORS
+
+from .const import CONF_DOORS, DOMAIN
 from .device import controller_device_info
+from .records import effective_name
+
 
 async def async_setup_entry(hass, entry, async_add_entities):
     client = hass.data[DOMAIN][entry.entry_id]
     data = entry.options.get(CONF_DOORS, {})
-    entities = [ICTDoor(client, int(k), v) for k, v in data.items()]
+    entities = [
+        ICTDoor(client, int(record_id), effective_name("Door", int(record_id), record))
+        for record_id, record in data.items()
+    ]
     async_add_entities(entities)
+
 
 class ICTDoor(LockEntity):
     def __init__(self, client, door_id, name):
@@ -44,7 +49,6 @@ class ICTDoor(LockEntity):
         else:
             door_state = "Closed"
             self._attr_icon = "mdi:door-closed"
-
         self._attr_extra_state_attributes["door_state"] = door_state
 
     @property
