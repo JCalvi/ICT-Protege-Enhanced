@@ -4,6 +4,18 @@ All notable changes to this fork will be documented in this file.
 
 This project is forked from the original [`caboose014/ICT-Protege-Home-Assistant`](https://github.com/caboose014/ICT-Protege-Home-Assistant) integration by **caboose014**. Earlier history belongs to the upstream project; entries below document changes made in this fork.
 
+## 1.10.0 - 2026-09-30
+
+### Changed
+- Consolidated all Protege entities under a single Home Assistant device named **ICT Protege Controller**.
+- Doors, door contacts, areas, inputs, input troubles, input bypass controls and outputs now all belong to the same controller device.
+- Removed per-door, per-area, per-input and per-output Home Assistant device shells.
+- Added automatic cleanup of legacy per-record device shells after entities migrate to the controller device.
+
+### Notes
+- Entity IDs and unique IDs are unchanged, so existing dashboards and automations should continue to work.
+- Only the Home Assistant device grouping changes; Protege monitoring and control behaviour is unchanged.
+
 ## 1.9.1 - 2026-09-30
 
 ### Fixed
