@@ -29,6 +29,8 @@ The integration connects directly to the ICT Controller's Automation and Control
   * Turn PGMs and other outputs On/Off.
 * **🔎 Device scanning**
   * Scans Protege database record IDs starting at **ID 0**.
+  * On Protege WX, optional web operator credentials allow the scanner to retrieve the actual programmed names, e.g. `Roller Pedestrian Door` instead of `Door 1`.
+  * WX name lookup also handles sparse database IDs more reliably because the programmed record list is used as the scan source.
 
 See [CHANGELOG.md](CHANGELOG.md) for version history.
 
@@ -93,8 +95,15 @@ After creating the service, verify that it is running under **Monitoring → Ser
    * **Host:** IP address of the ICT controller.
    * **Port:** `21000` unless you deliberately configured another port.
    * **Service PIN:** A valid Protege **user PIN**.
+   * **WX Web Operator Username / Password:** Optional. These are only used for read-only programmed-name lookup during scans on Protege WX.
 
-The PIN is a Protege user PIN, not the Protege WX web login password. The user must have the appropriate access level/permissions for any doors, areas or outputs Home Assistant is expected to control.
+The Service PIN is a Protege user PIN, not the Protege WX web login password. It is used for Automation and Control monitoring and commands. The user must have the appropriate access level/permissions for any doors, areas or outputs Home Assistant is expected to control.
+
+The optional WX web operator credentials are separate from the Service PIN. They are used only to authenticate to the controller's HTTPS `PRT_CTRL_DIN_ISAPI.dll` interface so the integration can read record lists and names during scanning. If they are omitted or authentication fails, scanning falls back to the Automation Service-only behaviour and generic names.
+
+Existing installations can add or change the optional WX credentials under:
+
+**Settings → Devices & Services → ICT Protege Automation → Configure → Edit Connection Settings**
 
 ---
 
@@ -120,19 +129,33 @@ This is intentional: doors controlled by Protege area/schedule rules can immedia
 
 ---
 
-## 🔎 Finding Device IDs
+## 🔎 Finding Device IDs and Names
 
 The integration uses Protege **database record IDs** unless the controller has explicitly been configured with `ACPUseDisplayOrder = true`.
 
 ### Device scanner
 
-The scanner now starts at **database ID 0**, which is valid in Protege and is commonly the first door/area/input record.
+The scanner starts at **database ID 0**, which is valid in Protege and is commonly the first door/area/input record.
 
-The scanner currently stops after five consecutive missing IDs. On systems with sparse database IDs, especially outputs/PGMs, manual configuration may still be required.
+With Protege WX web operator credentials configured, the scanner first obtains the controller's programmed record list and names through the read-only DLL API. For example, a door discovered as database ID `1` can be created as:
+
+```text
+Roller Pedestrian Door
+```
+
+instead of:
+
+```text
+Door 1
+```
+
+If an existing item still has the generic name created by an earlier scan, rescanning can replace that generic name with the programmed WX name. Names that have been manually edited in Home Assistant are preserved.
+
+Using the WX record list also avoids the normal five-consecutive-missing-ID limitation for sparse WX databases. Without WX credentials, GX systems and WX systems fall back to the Automation Service-only scanner, which stops after five consecutive missing IDs.
 
 ### Protege WX read-only API
 
-On Protege WX, the controller's DLL API can also be used to retrieve database IDs while logged into the WX web interface. For example:
+The name lookup uses the controller's local HTTPS DLL API. The same read-only list can be viewed manually while authenticated to WX, for example:
 
 ```text
 https://CONTROLLER/PRT_CTRL_DIN_ISAPI.dll?Request&Type=List&SubType=GXT_DOORS_TBL
@@ -147,7 +170,7 @@ GXT_INPUTS_TBL   Inputs / Sensors
 GXT_PGMS_TBL     Outputs / PGMs
 ```
 
-These `Request&Type=List` requests are read-only.
+These `Request&Type=List` operations are read-only. The integration uses ICT's documented HTTPS server-side operator authentication and closes the API session after the scan metadata has been retrieved.
 
 ### Display-order mode
 
@@ -169,6 +192,13 @@ Otherwise use the actual Protege database record IDs.
 * Confirm the Automation and Control service is running.
 * Confirm the configured value is a valid Protege user PIN.
 * Confirm that user has an access level permitting the intended controls.
+
+**WX scan still shows `Door 1`, `Area 2`, etc.**
+
+* Add the Protege WX web operator username and password under **Edit Connection Settings**.
+* Confirm those credentials can log in to the controller's WX web interface.
+* Rescan the devices. Generic names from previous scans will be replaced with the programmed WX names; manually renamed items are left unchanged.
+* If name lookup fails, the integration deliberately falls back to generic names rather than failing the scan.
 
 **Contacts work but door control does not**
 
