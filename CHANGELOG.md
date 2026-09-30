@@ -4,6 +4,19 @@ All notable changes to this fork will be documented in this file.
 
 This project is forked from the original [`caboose014/ICT-Protege-Home-Assistant`](https://github.com/caboose014/ICT-Protege-Home-Assistant) integration by **caboose014**. Earlier history belongs to the upstream project; entries below document changes made in this fork.
 
+## 1.9.1 - 2026-09-30
+
+### Fixed
+- Fixed device scans incorrectly failing with `invalid_auth` before any read-only status requests were attempted.
+- Device scans no longer perform an Automation Service PIN login when scanning records. This matches the documented controller configuration requirement **Allow Status Requests When Not Logged In**.
+- Separated optional Protege WX web-operator authentication from the Automation Service PIN.
+- Editing connection settings with a blank Service PIN now preserves the existing PIN instead of replacing it with a blank value.
+
+### Changed
+- Added a dedicated **Configure WX Name Lookup** options step for the optional WX web operator username/password used only for programmed-name discovery.
+- WX name-lookup credentials are validated when saved and now report a dedicated WX authentication error instead of the misleading Automation Service `invalid_auth` error.
+- Updated the release workflow so changing `manifest.json` automatically publishes the corresponding GitHub/HACS release.
+
 ## 1.9.0 - 2026-09-30
 
 ### Added
