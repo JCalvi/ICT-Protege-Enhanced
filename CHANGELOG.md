@@ -4,6 +4,22 @@ All notable changes to this fork will be documented in this file.
 
 This project is forked from the original [`caboose014/ICT-Protege-Home-Assistant`](https://github.com/caboose014/ICT-Protege-Home-Assistant) integration by **caboose014**. Earlier history belongs to the upstream project; entries below document changes made in this fork.
 
+## 2.0.0 - 2026-09-30
+
+### Changed
+- Redesigned **Manage Protege Entities** as the central add/search/remove workflow.
+- Added **Search / Refresh Controller** inside entity management. Search results feed the four selection lists but are not automatically enabled.
+- Added **Select / Remove Entities** with separate multi-selects for Doors, Areas, Inputs and Outputs. Existing configured records remain preselected.
+- Restored manual addition through **Manually Add Entity**, allowing Door, Area, Input or Output database IDs plus an optional custom Home Assistant name.
+- Removed the redundant top-level **Discover / Rescan Devices** menu entry.
+- Search uses full WX database lists and programmed names when WX Name Lookup is configured; Automation Service scanning remains the fallback when WX metadata is unavailable.
+- Removal confirmation remains in place before configured records are deleted from Home Assistant.
+
+### Compatibility
+- Stable entity unique IDs remain unchanged, so retained entities keep their Home Assistant identity and existing dashboards/automations continue to point at the same entities.
+- Existing `programmed_name` and `custom_name` metadata is preserved.
+- Manual additions use the same structured record model as discovered records.
+
 ## 1.11.1 - 2026-09-30
 
 ### Fixed
