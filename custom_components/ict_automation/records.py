@@ -36,7 +36,11 @@ def normalize_records(raw, prefix: str, discovered_names: dict[int, str] | None 
         custom = None
 
         if isinstance(raw_value, dict):
-            programmed = raw_value.get("programmed_name") or programmed
+            # A live WX name is authoritative for the programmed name. Keep a
+            # saved programmed name only when no fresh controller name exists.
+            programmed = discovered_names.get(record_id) or raw_value.get(
+                "programmed_name"
+            )
             custom = raw_value.get("custom_name")
         else:
             legacy_name = str(raw_value)
