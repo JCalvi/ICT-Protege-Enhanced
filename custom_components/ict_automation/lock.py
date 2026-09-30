@@ -2,8 +2,8 @@ import logging
 from homeassistant.components.lock import LockEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import callback
-from homeassistant.helpers.entity import DeviceInfo
 from .const import DOMAIN, CONF_DOORS
+from .device import controller_device_info
 
 async def async_setup_entry(hass, entry, async_add_entities):
     client = hass.data[DOMAIN][entry.entry_id]
@@ -17,20 +17,11 @@ class ICTDoor(LockEntity):
         self._door_id = door_id
         self._attr_name = name
         self._attr_unique_id = f"ict_door_{door_id}"
+        self._attr_device_info = controller_device_info()
         self._is_locked = True
         self._is_open = False
         self._attr_extra_state_attributes = {}
         self._update_door_state()
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"door_{self._door_id}")},
-            name=self._attr_name,
-            manufacturer="Integrated Control Technology",
-            model="Protege Door",
-            via_device=(DOMAIN, "ict_controller"),
-        )
 
     async def async_added_to_hass(self):
         self._client.register_callback(self._handle_update)
@@ -44,7 +35,6 @@ class ICTDoor(LockEntity):
             self.async_write_ha_state()
 
     def _update_door_state(self):
-        """Expose a human-friendly combined door/contact state on the lock entity."""
         if self._is_open:
             door_state = "Open"
             self._attr_icon = "mdi:door-open"
@@ -66,11 +56,7 @@ class ICTDoor(LockEntity):
         return self._is_open
 
     async def async_lock(self, **kwargs):
-        # Protege door command 0x00 = lock.
         await self._client.send_command(0x01, 0x00, self._door_id)
 
     async def async_unlock(self, **kwargs):
-        # Protege door command 0x01 = normal/timed unlock.
-        # This respects the door's configured activation time and avoids the
-        # area/schedule logic immediately overriding a latched unlock.
         await self._client.send_command(0x01, 0x01, self._door_id)
