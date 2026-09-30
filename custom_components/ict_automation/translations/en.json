@@ -29,7 +29,7 @@
           "manage_entities": "Manage Protege Entities",
           "configure_arming": "Configure Arming Modes",
           "configure_connection": "Edit Automation Service Connection",
-          "configure_wx_names": "Configure WX Name Lookup",
+          "configure_wx_names": "Configure WX Operator Fallback",
           "raw_editor": "Advanced: Edit YAML Config"
         }
       },
@@ -46,12 +46,12 @@
       },
       "manage_search": {
         "title": "Search / Refresh Controller",
-        "description": "Search the Protege controller for available records. With WX Name Lookup configured, the WX database record lists and programmed names are used directly. Searching does not enable newly discovered records; you choose them on the next screen.",
+        "description": "On Protege WX, the integration first tries the read-only database list URLs anonymously. If the controller blocks anonymous list access, optional WX operator credentials are tried next. Automation Service probing is the final fallback. Searching does not enable newly discovered records; you choose them on the next screen.",
         "data": {
-          "limit_doors": "Highest Door ID to Scan (fallback only)",
-          "limit_areas": "Highest Area ID to Scan (fallback only)",
-          "limit_inputs": "Highest Input ID to Scan (fallback only)",
-          "limit_outputs": "Highest Output ID to Scan (fallback only)"
+          "limit_doors": "Highest Door ID to Scan (Automation fallback only)",
+          "limit_areas": "Highest Area ID to Scan (Automation fallback only)",
+          "limit_inputs": "Highest Input ID to Scan (Automation fallback only)",
+          "limit_outputs": "Highest Output ID to Scan (Automation fallback only)"
         }
       },
       "manage_select": {
@@ -134,11 +134,11 @@
         }
       },
       "configure_wx_names": {
-        "title": "Protege WX Name Lookup",
-        "description": "Optional. These WX web operator credentials are used only for read-only programmed-name lookup. Leave the password blank to keep the saved password. Clear the username to disable WX name lookup.",
+        "title": "Protege WX Operator Fallback",
+        "description": "Optional fallback only. Protege WX database/name lookup is tried anonymously first. Enter a WX web operator account only for controllers that require authentication for the read-only list URLs. Leave the password blank to keep the saved password, or clear the username to remove the saved fallback login.",
         "data": {
-          "wx_username": "WX Web Operator Username",
-          "wx_password": "WX Web Operator Password"
+          "wx_username": "Optional WX Web Operator Username",
+          "wx_password": "Optional WX Web Operator Password"
         }
       },
       "raw_editor": {
@@ -151,7 +151,7 @@
       "id_exists": "A record of this type with that database ID is already configured.",
       "cannot_connect": "Could not connect to controller.",
       "invalid_auth": "Service PIN rejected.",
-      "wx_auth": "Protege WX web login failed. Check the WX operator username/password.",
+      "wx_auth": "Protege WX operator login failed. These optional fallback credentials were not saved; anonymous WX database lookup may still work.",
       "invalid_selection": "The submitted selection contained an invalid or unavailable record ID.",
       "yaml_error": "The YAML configuration is invalid."
     },
