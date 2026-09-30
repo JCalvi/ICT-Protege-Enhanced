@@ -1,18 +1,23 @@
-import logging
 from homeassistant.components.select import SelectEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import callback
 from homeassistant.helpers.entity import EntityCategory
-from .const import DOMAIN, CONF_INPUTS
+
+from .const import CONF_INPUTS, DOMAIN
 from .device import controller_device_info
+from .records import effective_name
 
 OPTIONS = ["Unbypassed", "Temporary Bypass", "Permanent Bypass"]
 
+
 async def async_setup_entry(hass, entry, async_add_entities):
     client = hass.data[DOMAIN][entry.entry_id]
-    data_in = entry.options.get(CONF_INPUTS, {})
-    inputs = [ICTBypassSelect(client, int(k), v) for k, v in data_in.items()]
+    data = entry.options.get(CONF_INPUTS, {})
+    inputs = [
+        ICTBypassSelect(client, int(record_id), effective_name("Input", int(record_id), record))
+        for record_id, record in data.items()
+    ]
     async_add_entities(inputs)
+
 
 class ICTBypassSelect(SelectEntity):
     def __init__(self, client, dev_id, name):
@@ -21,7 +26,6 @@ class ICTBypassSelect(SelectEntity):
         self._attr_name = f"{name} Bypass"
         self._attr_unique_id = f"ict_input_bypass_{dev_id}"
         self._attr_device_info = controller_device_info()
-        self._type_key = "input"
         self._group = 0x04
         self._attr_current_option = OPTIONS[0]
         self._attr_options = OPTIONS
