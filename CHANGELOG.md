@@ -4,6 +4,12 @@ All notable changes to this fork will be documented in this file.
 
 This project is forked from the original [`caboose014/ICT-Protege-Home-Assistant`](https://github.com/caboose014/ICT-Protege-Home-Assistant) integration by **caboose014**. Earlier history belongs to the upstream project; entries below document changes made in this fork.
 
+## 1.11.1 - 2026-09-30
+
+### Fixed
+- Kept the config-flow version at `1` so existing installations do not require a separate Home Assistant config-entry migration handler.
+- Changed option updates to use the normal Home Assistant OptionsFlow save path rather than updating the config entry prematurely while the flow is still open.
+
 ## 1.11.0 - 2026-09-30
 
 ### Added
