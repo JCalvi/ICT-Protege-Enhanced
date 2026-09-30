@@ -96,6 +96,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         self._manage_discovered = {key: set() for key, *_ in RECORD_SPECS}
         self._manage_name_maps = {key: {} for key, *_ in RECORD_SPECS}
         self._manage_source = "Configured records only"
+        self._manage_authoritative = False
         self._pending_options = None
         self._pending_diff = None
 
@@ -200,6 +201,10 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             CONF_OUTPUTS: max(0, int(user_input["limit_outputs"])),
         }
 
+        wx_configured = bool(
+            str(self.data.get(CONF_WX_USERNAME, "")).strip()
+            and str(self.data.get(CONF_WX_PASSWORD, ""))
+        )
         name_maps = await self._get_wx_name_maps()
         discovered = {}
 
@@ -213,6 +218,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                     int(record_id) for record_id in name_maps.get(key, {})
                 }
             source_name = "WX database"
+            self._manage_authoritative = True
         else:
             client, temporary = await self._get_scan_client()
             if client is None:
@@ -236,7 +242,12 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             finally:
                 if temporary:
                     await client.stop()
-            source_name = "Automation Service"
+
+            self._manage_authoritative = False
+            if wx_configured:
+                source_name = "Automation Service fallback (WX lookup unavailable)"
+            else:
+                source_name = "Automation Service fallback (WX lookup not configured)"
 
         self._manage_discovered = discovered
         self._manage_name_maps = {
@@ -267,10 +278,11 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                 }
             name = effective_name(prefix, record_id, record)
             if (
-                self._manage_discovered.get(key)
+                self._manage_authoritative
+                and self._manage_discovered.get(key)
                 and record_id not in self._manage_discovered[key]
             ):
-                name = f"{name} (not found in latest search)"
+                name = f"{name} (not found in current WX database)"
             options.append(
                 selector.SelectOptionDict(
                     value=str(record_id),
