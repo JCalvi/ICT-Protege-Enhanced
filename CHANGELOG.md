@@ -4,6 +4,17 @@ All notable changes to this fork will be documented in this file.
 
 This project is forked from the original [`caboose014/ICT-Protege-Home-Assistant`](https://github.com/caboose014/ICT-Protege-Home-Assistant) integration by **caboose014**. Earlier history belongs to the upstream project; entries below document changes made in this fork.
 
+## 2.0.3 - 2026-09-30
+
+### Fixed
+- Automation Service fallback scans are now treated as non-authoritative. Existing configured records are retained without being labelled **not found** merely because the fallback scan did not reach or verify them.
+- The Select / Remove screen now clearly states whether it used the authoritative WX database or an Automation Service fallback.
+- When WX credentials are configured but lookup fails, the source line reports **WX lookup unavailable** instead of silently looking like a normal Automation Service search.
+- When WX lookup is not configured, the source line explicitly says so.
+
+### Notes
+- The Automation Service fallback still discovers what it can, but sparse IDs and some Area records cannot be reliably proven absent through that protocol. Only the WX database list is used to make an authoritative missing-record judgement.
+
 ## 2.0.2 - 2026-09-30
 
 ### Fixed
