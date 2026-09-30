@@ -4,6 +4,16 @@ All notable changes to this fork will be documented in this file.
 
 This project is forked from the original [`caboose014/ICT-Protege-Home-Assistant`](https://github.com/caboose014/ICT-Protege-Home-Assistant) integration by **caboose014**. Earlier history belongs to the upstream project; entries below document changes made in this fork.
 
+## 2.0.2 - 2026-09-30
+
+### Fixed
+- WX database search now trusts the WX database record lists directly instead of revalidating each record through Automation Service status probes. This avoids valid records, especially Areas, being incorrectly marked **not found in latest search**.
+- Fresh WX programmed names now take precedence over stale saved programmed names, so refreshed searches immediately show current Protege names instead of generic names such as `Door 0`.
+
+### Changed
+- Moved **Rename Entity** into **Manage Protege Entities** so search, selection/removal, manual add and rename are all grouped together.
+- The rename submenu now returns to **Manage Protege Entities** rather than the top-level setup menu.
+
 ## 2.0.1 - 2026-09-30
 
 ### Fixed
