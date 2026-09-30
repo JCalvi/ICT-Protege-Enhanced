@@ -6,6 +6,7 @@ on:
     branches:
       - Release
     paths:
+      - custom_components/ict_automation/manifest.json
       - .github/workflows/publish-release.yml
 
 permissions:
@@ -18,15 +19,14 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Publish releases
+      - name: Publish release from manifest version
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
 
-          # Bootstrap the last pre-release-tag build so existing HACS installs
-          # can resolve the old commit to a friendly version number.
+          # Keep the initial JC-fork baseline tagged for existing HACS installs.
           if ! gh release view v1.8.0 >/dev/null 2>&1; then
             gh release create v1.8.0 \
               --target 5b61e772a58802e4cb71cfc3c3a0914b62f2edd6 \
