@@ -120,7 +120,6 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             step_id="init",
             menu_options=[
                 "manage_entities",
-                "edit_device",
                 "configure_arming",
                 "configure_connection",
                 "configure_wx_names",
@@ -135,6 +134,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                 "manage_search",
                 "manage_select",
                 "manual_add",
+                "edit_device",
                 "back",
             ],
         )
@@ -200,49 +200,53 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             CONF_OUTPUTS: max(0, int(user_input["limit_outputs"])),
         }
 
-        client, temporary = await self._get_scan_client()
-        if client is None:
-            return self.async_abort(reason="cannot_connect")
+        name_maps = await self._get_wx_name_maps()
+        discovered = {}
 
-        try:
-            name_maps = await self._get_wx_name_maps()
-            discovered = {}
+        if name_maps:
+            # WX database list results are authoritative record lists. Do not
+            # revalidate them with Automation Service status requests: some
+            # valid records (especially areas) do not answer the existence
+            # probe even though they are present in the WX database.
+            for key, _prefix, _group, _default_limit in RECORD_SPECS:
+                discovered[key] = {
+                    int(record_id) for record_id in name_maps.get(key, {})
+                }
+            source_name = "WX database"
+        else:
+            client, temporary = await self._get_scan_client()
+            if client is None:
+                return self.async_abort(reason="cannot_connect")
 
-            for key, _prefix, group, _default_limit in RECORD_SPECS:
-                found = set()
-                name_map = name_maps.get(key, {})
+            try:
+                for key, _prefix, group, _default_limit in RECORD_SPECS:
+                    found = set()
+                    consecutive_fails = 0
+                    for record_id in range(0, limits[key] + 1):
+                        exists = await client.check_exists(group, record_id)
+                        await asyncio.sleep(0.1)
+                        if exists:
+                            found.add(record_id)
+                            consecutive_fails = 0
+                        else:
+                            consecutive_fails += 1
+                            if consecutive_fails >= 5:
+                                break
+                    discovered[key] = found
+            finally:
+                if temporary:
+                    await client.stop()
+            source_name = "Automation Service"
 
-                if name_map:
-                    candidates = sorted(int(record_id) for record_id in name_map)
-                else:
-                    candidates = range(0, limits[key] + 1)
-
-                consecutive_fails = 0
-                for record_id in candidates:
-                    exists = await client.check_exists(group, record_id)
-                    await asyncio.sleep(0.1)
-                    if exists:
-                        found.add(record_id)
-                        consecutive_fails = 0
-                    elif not name_map:
-                        consecutive_fails += 1
-                        if consecutive_fails >= 5:
-                            break
-
-                discovered[key] = found
-
-            self._manage_discovered = discovered
-            self._manage_name_maps = {
-                key: name_maps.get(key, {}) for key, *_ in RECORD_SPECS
-            }
-            counts = ", ".join(
-                f"{len(discovered[key])} {prefix.lower()}s"
-                for key, prefix, *_ in RECORD_SPECS
-            )
-            self._manage_source = f"Controller search complete ({counts})"
-        finally:
-            if temporary:
-                await client.stop()
+        self._manage_discovered = discovered
+        self._manage_name_maps = {
+            key: name_maps.get(key, {}) for key, *_ in RECORD_SPECS
+        }
+        counts = ", ".join(
+            f"{len(discovered[key])} {prefix.lower()}s"
+            for key, prefix, *_ in RECORD_SPECS
+        )
+        self._manage_source = f"{source_name} search complete ({counts})"
 
         return await self.async_step_manage_select()
 
@@ -452,7 +456,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                 "edit_area",
                 "edit_input",
                 "edit_output",
-                "back",
+                "manage_entities",
             ],
         )
 
@@ -516,16 +520,24 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         )
 
     async def async_step_edit_door(self, user_input=None):
-        return await self._edit_select_step(user_input, CONF_DOORS, "Door", "edit_door")
+        return await self._edit_select_step(
+            user_input, CONF_DOORS, "Door", "edit_door"
+        )
 
     async def async_step_edit_area(self, user_input=None):
-        return await self._edit_select_step(user_input, CONF_AREAS, "Area", "edit_area")
+        return await self._edit_select_step(
+            user_input, CONF_AREAS, "Area", "edit_area"
+        )
 
     async def async_step_edit_input(self, user_input=None):
-        return await self._edit_select_step(user_input, CONF_INPUTS, "Input", "edit_input")
+        return await self._edit_select_step(
+            user_input, CONF_INPUTS, "Input", "edit_input"
+        )
 
     async def async_step_edit_output(self, user_input=None):
-        return await self._edit_select_step(user_input, CONF_OUTPUTS, "Output", "edit_output")
+        return await self._edit_select_step(
+            user_input, CONF_OUTPUTS, "Output", "edit_output"
+        )
 
     async def async_step_raw_editor(self, user_input=None):
         errors = {}
@@ -542,9 +554,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             except Exception:
                 errors["base"] = "yaml_error"
 
-        current = {
-            key: self._normalized_records(key) for key, *_ in RECORD_SPECS
-        }
+        current = {key: self._normalized_records(key) for key, *_ in RECORD_SPECS}
         return self.async_show_form(
             step_id="raw_editor",
             data_schema=vol.Schema(
