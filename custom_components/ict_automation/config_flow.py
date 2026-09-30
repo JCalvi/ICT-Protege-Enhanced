@@ -8,11 +8,23 @@ from homeassistant.core import callback
 from homeassistant.helpers import entity_registry as er, selector
 
 from .const import (
-    DOMAIN, CONF_HOST, CONF_PORT, CONF_PASSWORD,
-    CONF_DOORS, CONF_AREAS, CONF_INPUTS, CONF_OUTPUTS,
-    CONF_ENABLE_AWAY, CONF_ENABLE_STAY, CONF_ENABLE_NIGHT, CONF_ENABLE_BYPASS,
+    DOMAIN,
+    CONF_HOST,
+    CONF_PORT,
+    CONF_PASSWORD,
+    CONF_WX_USERNAME,
+    CONF_WX_PASSWORD,
+    CONF_DOORS,
+    CONF_AREAS,
+    CONF_INPUTS,
+    CONF_OUTPUTS,
+    CONF_ENABLE_AWAY,
+    CONF_ENABLE_STAY,
+    CONF_ENABLE_NIGHT,
+    CONF_ENABLE_BYPASS,
 )
 from .ict_library import ICTClient
+from .wx_api import ProtegeWXAPI
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,13 +34,23 @@ class ICTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None):
         if user_input is not None:
-            return self.async_create_entry(title=f"ICT ({user_input[CONF_HOST]})", data=user_input)
+            return self.async_create_entry(
+                title=f"ICT ({user_input[CONF_HOST]})",
+                data=user_input,
+            )
+
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({
                 vol.Required(CONF_HOST): str,
                 vol.Required(CONF_PORT, default=21000): int,
-                vol.Required(CONF_PASSWORD): str,
+                vol.Required(CONF_PASSWORD): selector.TextSelector(
+                    selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+                ),
+                vol.Optional(CONF_WX_USERNAME, default=""): str,
+                vol.Optional(CONF_WX_PASSWORD, default=""): selector.TextSelector(
+                    selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+                ),
             }),
         )
 
@@ -63,15 +85,25 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         return {}
 
     def _save_options(self):
-        self.hass.config_entries.async_update_entry(self._config_entry, options=self.options)
+        self.hass.config_entries.async_update_entry(
+            self._config_entry,
+            options=self.options,
+        )
 
     async def async_step_init(self, user_input=None):
         return self.async_show_menu(
             step_id="init",
             menu_options=[
-                "scan_devices", "configure_arming", "configure_connection",
-                "add_door", "add_area", "add_input", "add_output",
-                "edit_device", "remove_device", "raw_editor",
+                "scan_devices",
+                "configure_arming",
+                "configure_connection",
+                "add_door",
+                "add_area",
+                "add_input",
+                "add_output",
+                "edit_device",
+                "remove_device",
+                "raw_editor",
             ],
         )
 
@@ -84,10 +116,22 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="configure_arming",
             data_schema=vol.Schema({
-                vol.Required(CONF_ENABLE_AWAY, default=self.options.get(CONF_ENABLE_AWAY, True)): bool,
-                vol.Required(CONF_ENABLE_STAY, default=self.options.get(CONF_ENABLE_STAY, True)): bool,
-                vol.Required(CONF_ENABLE_NIGHT, default=self.options.get(CONF_ENABLE_NIGHT, True)): bool,
-                vol.Optional(CONF_ENABLE_BYPASS, default=self.options.get(CONF_ENABLE_BYPASS, False)): bool,
+                vol.Required(
+                    CONF_ENABLE_AWAY,
+                    default=self.options.get(CONF_ENABLE_AWAY, True),
+                ): bool,
+                vol.Required(
+                    CONF_ENABLE_STAY,
+                    default=self.options.get(CONF_ENABLE_STAY, True),
+                ): bool,
+                vol.Required(
+                    CONF_ENABLE_NIGHT,
+                    default=self.options.get(CONF_ENABLE_NIGHT, True),
+                ): bool,
+                vol.Optional(
+                    CONF_ENABLE_BYPASS,
+                    default=self.options.get(CONF_ENABLE_BYPASS, False),
+                ): bool,
             }),
         )
 
@@ -98,10 +142,19 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                 raw_data = yaml.safe_load(user_input["config_yaml"])
                 if not isinstance(raw_data, dict):
                     raise ValueError("Root must be a dictionary")
-                self.options[CONF_DOORS] = self._parse_raw_section(raw_data.get("doors", {}))
-                self.options[CONF_AREAS] = self._parse_raw_section(raw_data.get("areas", {}))
-                self.options[CONF_INPUTS] = self._parse_raw_section(raw_data.get("inputs", {}))
-                self.options[CONF_OUTPUTS] = self._parse_raw_section(raw_data.get("outputs", {}))
+
+                self.options[CONF_DOORS] = self._parse_raw_section(
+                    raw_data.get("doors", {})
+                )
+                self.options[CONF_AREAS] = self._parse_raw_section(
+                    raw_data.get("areas", {})
+                )
+                self.options[CONF_INPUTS] = self._parse_raw_section(
+                    raw_data.get("inputs", {})
+                )
+                self.options[CONF_OUTPUTS] = self._parse_raw_section(
+                    raw_data.get("outputs", {})
+                )
                 self._save_options()
                 return self.async_create_entry(title="", data=self.options)
             except Exception:
@@ -114,6 +167,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             "outputs": self._get_dict(CONF_OUTPUTS),
         }
         yaml_str = yaml.dump(current_config, sort_keys=True, allow_unicode=True)
+
         return self.async_show_form(
             step_id="raw_editor",
             data_schema=vol.Schema({
@@ -132,6 +186,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
     async def _add_item_step(self, user_input, type_name, storage_key, step_id):
         storage_dict = self._get_dict(storage_key)
         errors = {}
+
         if user_input is not None:
             dev_id = int(user_input["dev_id"])
             if dev_id in storage_dict:
@@ -139,12 +194,14 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             else:
                 storage_dict[dev_id] = user_input["name"]
                 self.options[storage_key] = storage_dict
+
                 if user_input.get("next_action") == "add_more":
                     return self.async_show_form(
                         step_id=step_id,
                         data_schema=self._get_schema_wizard(),
                         description_placeholders={"type": type_name},
                     )
+
                 self._save_options()
                 return self.async_create_entry(title="", data=self.options)
 
@@ -171,25 +228,40 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         })
 
     async def async_step_add_door(self, user_input=None):
-        return await self._add_item_step(user_input, "door", CONF_DOORS, "add_door")
+        return await self._add_item_step(
+            user_input, "door", CONF_DOORS, "add_door"
+        )
 
     async def async_step_add_area(self, user_input=None):
-        return await self._add_item_step(user_input, "area", CONF_AREAS, "add_area")
+        return await self._add_item_step(
+            user_input, "area", CONF_AREAS, "add_area"
+        )
 
     async def async_step_add_input(self, user_input=None):
-        return await self._add_item_step(user_input, "input", CONF_INPUTS, "add_input")
+        return await self._add_item_step(
+            user_input, "input", CONF_INPUTS, "add_input"
+        )
 
     async def async_step_add_output(self, user_input=None):
-        return await self._add_item_step(user_input, "output", CONF_OUTPUTS, "add_output")
+        return await self._add_item_step(
+            user_input, "output", CONF_OUTPUTS, "add_output"
+        )
 
     async def async_step_remove_device(self, user_input=None):
         return self.async_show_menu(
             step_id="remove_device",
-            menu_options=["remove_door", "remove_area", "remove_input", "remove_output", "back"],
+            menu_options=[
+                "remove_door",
+                "remove_area",
+                "remove_input",
+                "remove_output",
+                "back",
+            ],
         )
 
     async def _remove_step(self, user_input, storage_key, step_id):
         storage_dict = self._get_dict(storage_key)
+
         if user_input:
             ent_reg = er.async_get(self.hass)
 
@@ -214,7 +286,10 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                     storage_dict.pop(dev_id, None)
                     target_uids = get_uids_to_remove(dev_id, storage_key)
                     for entry in list(ent_reg.entities.values()):
-                        if entry.config_entry_id == self._config_entry.entry_id and entry.unique_id in target_uids:
+                        if (
+                            entry.config_entry_id == self._config_entry.entry_id
+                            and entry.unique_id in target_uids
+                        ):
                             ent_reg.async_remove(entry.entity_id)
                 except Exception:
                     continue
@@ -230,6 +305,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             selector.SelectOptionDict(value=str(k), label=f"{k}: {v}")
             for k, v in storage_dict.items()
         ]
+
         schema = vol.Schema({
             vol.Required("items"): selector.SelectSelector(
                 selector.SelectSelectorConfig(
@@ -256,11 +332,18 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_edit_device(self, user_input=None):
         return self.async_show_menu(
             step_id="edit_device",
-            menu_options=["edit_door", "edit_area", "edit_input", "edit_output", "back"],
+            menu_options=[
+                "edit_door",
+                "edit_area",
+                "edit_input",
+                "edit_output",
+                "back",
+            ],
         )
 
     async def _edit_select_step(self, user_input, storage_key, step_id):
         storage_dict = self._get_dict(storage_key)
+
         if user_input:
             self._edit_id = int(user_input["item"])
             self._edit_type = storage_key
@@ -273,6 +356,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             selector.SelectOptionDict(value=str(k), label=f"{k}: {v}")
             for k, v in storage_dict.items()
         ]
+
         return self.async_show_form(
             step_id=step_id,
             data_schema=vol.Schema({
@@ -287,6 +371,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_edit_confirm(self, user_input=None):
         storage = self._get_dict(self._edit_type)
+
         if user_input:
             storage[self._edit_id] = user_input["name"]
             self.options[self._edit_type] = storage
@@ -325,7 +410,14 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_scan_devices(self, user_input=None):
         return self.async_show_menu(
             step_id="scan_devices",
-            menu_options=["scan_all", "scan_doors", "scan_areas", "scan_inputs", "scan_outputs", "back"],
+            menu_options=[
+                "scan_all",
+                "scan_doors",
+                "scan_areas",
+                "scan_inputs",
+                "scan_outputs",
+                "back",
+            ],
         )
 
     async def async_step_scan_all(self, user_input=None):
@@ -336,6 +428,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                 user_input["limit_outputs"],
                 user_input["limit_inputs"],
             )
+
         return self.async_show_form(
             step_id="scan_all",
             data_schema=vol.Schema({
@@ -378,15 +471,56 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             data_schema=vol.Schema({vol.Required("limit", default=20): int}),
         )
 
-    async def _execute_scan_logic(self, limit_doors=0, limit_areas=0, limit_inputs=0, limit_outputs=0):
+    async def _get_wx_name_maps(self):
+        """Fetch programmed record names from the read-only Protege WX DLL API."""
+        username = str(self.data.get(CONF_WX_USERNAME, "")).strip()
+        password = str(self.data.get(CONF_WX_PASSWORD, ""))
+
+        if not username or not password:
+            return {}
+
+        api = ProtegeWXAPI(
+            self.data[CONF_HOST],
+            username,
+            password,
+        )
+
+        try:
+            return await api.fetch_name_maps({
+                CONF_DOORS: "GXT_DOORS_TBL",
+                CONF_AREAS: "GXT_AREAS_TBL",
+                CONF_INPUTS: "GXT_INPUTS_TBL",
+                CONF_OUTPUTS: "GXT_PGMS_TBL",
+            })
+        except Exception as err:
+            _LOGGER.warning(
+                "Could not retrieve Protege WX names; falling back to generic scan names: %s",
+                err,
+            )
+            return {}
+
+    async def _execute_scan_logic(
+        self,
+        limit_doors=0,
+        limit_areas=0,
+        limit_inputs=0,
+        limit_outputs=0,
+    ):
         client = None
         is_temp = False
 
-        if DOMAIN in self.hass.data and self._config_entry.entry_id in self.hass.data[DOMAIN]:
+        if (
+            DOMAIN in self.hass.data
+            and self._config_entry.entry_id in self.hass.data[DOMAIN]
+        ):
             client = self.hass.data[DOMAIN][self._config_entry.entry_id]
 
         if not client:
-            client = ICTClient(self.data[CONF_HOST], self.data[CONF_PORT], self.data[CONF_PASSWORD])
+            client = ICTClient(
+                self.data[CONF_HOST],
+                self.data[CONF_PORT],
+                self.data[CONF_PASSWORD],
+            )
             if not await client.start_temp_connection():
                 return self.async_abort(reason="cannot_connect")
             is_temp = True
@@ -396,14 +530,48 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                 await client.stop()
             return self.async_abort(reason="invalid_auth")
 
+        name_maps = await self._get_wx_name_maps()
+
         if limit_areas > 0:
-            await self._run_scan(client, 2, limit_areas, self._get_dict(CONF_AREAS), "Area", CONF_AREAS)
+            await self._run_scan(
+                client,
+                2,
+                limit_areas,
+                self._get_dict(CONF_AREAS),
+                "Area",
+                CONF_AREAS,
+                name_maps.get(CONF_AREAS, {}),
+            )
         if limit_doors > 0:
-            await self._run_scan(client, 1, limit_doors, self._get_dict(CONF_DOORS), "Door", CONF_DOORS)
+            await self._run_scan(
+                client,
+                1,
+                limit_doors,
+                self._get_dict(CONF_DOORS),
+                "Door",
+                CONF_DOORS,
+                name_maps.get(CONF_DOORS, {}),
+            )
         if limit_outputs > 0:
-            await self._run_scan(client, 3, limit_outputs, self._get_dict(CONF_OUTPUTS), "Output", CONF_OUTPUTS)
+            await self._run_scan(
+                client,
+                3,
+                limit_outputs,
+                self._get_dict(CONF_OUTPUTS),
+                "Output",
+                CONF_OUTPUTS,
+                name_maps.get(CONF_OUTPUTS, {}),
+            )
         if limit_inputs > 0:
-            await self._run_scan(client, 4, limit_inputs, self._get_dict(CONF_INPUTS), "Input", CONF_INPUTS)
+            await self._run_scan(
+                client,
+                4,
+                limit_inputs,
+                self._get_dict(CONF_INPUTS),
+                "Input",
+                CONF_INPUTS,
+                name_maps.get(CONF_INPUTS, {}),
+            )
 
         if is_temp:
             await client.stop()
@@ -411,10 +579,45 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         self._save_options()
         return self.async_create_entry(title="", data=self.options)
 
-    async def _run_scan(self, client, group, limit, storage, name_prefix, conf_key):
-        consecutive_fails = 0
+    async def _run_scan(
+        self,
+        client,
+        group,
+        limit,
+        storage,
+        name_prefix,
+        conf_key,
+        name_map=None,
+    ):
+        name_map = name_map or {}
 
-        # Protege database record IDs are zero-based. Include ID 0 in scans.
+        # When the WX DLL API supplied the programmed record list, use those
+        # IDs directly. This gives us the actual record names and also handles
+        # sparse databases without stopping after five unused IDs.
+        if name_map:
+            for i, actual_name in sorted(name_map.items()):
+                if i < 0 or i > limit:
+                    continue
+
+                exists = await client.check_exists(group, i)
+                await asyncio.sleep(0.1)
+                if not exists:
+                    continue
+
+                current_name = storage.get(i)
+                generic_name = f"{name_prefix} {i}"
+
+                # Preserve names the user has manually edited. Replace only a
+                # missing name or the generic name produced by an older scan.
+                if not current_name or current_name == generic_name:
+                    storage[i] = actual_name
+
+            self.options[conf_key] = storage
+            return
+
+        # GX, older WX versions, or WX systems without web operator credentials
+        # retain the Automation Service-only scanning behaviour.
+        consecutive_fails = 0
         for i in range(0, limit + 1):
             if i in storage:
                 consecutive_fails = 0
@@ -435,15 +638,44 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_configure_connection(self, user_input=None):
         if user_input is not None:
-            self.hass.config_entries.async_update_entry(self._config_entry, data=user_input)
+            self.hass.config_entries.async_update_entry(
+                self._config_entry,
+                data=user_input,
+            )
+            self.data = dict(user_input)
             return self.async_create_entry(title="", data=self.options)
 
         schema = vol.Schema({
-            vol.Required(CONF_HOST, default=self.data.get(CONF_HOST)): str,
-            vol.Required(CONF_PORT, default=self.data.get(CONF_PORT)): int,
-            vol.Required(CONF_PASSWORD, default=self.data.get(CONF_PASSWORD)): str,
+            vol.Required(
+                CONF_HOST,
+                default=self.data.get(CONF_HOST),
+            ): str,
+            vol.Required(
+                CONF_PORT,
+                default=self.data.get(CONF_PORT),
+            ): int,
+            vol.Required(
+                CONF_PASSWORD,
+                default=self.data.get(CONF_PASSWORD),
+            ): selector.TextSelector(
+                selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+            ),
+            vol.Optional(
+                CONF_WX_USERNAME,
+                default=self.data.get(CONF_WX_USERNAME, ""),
+            ): str,
+            vol.Optional(
+                CONF_WX_PASSWORD,
+                default=self.data.get(CONF_WX_PASSWORD, ""),
+            ): selector.TextSelector(
+                selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+            ),
         })
-        return self.async_show_form(step_id="configure_connection", data_schema=schema)
+
+        return self.async_show_form(
+            step_id="configure_connection",
+            data_schema=schema,
+        )
 
     async def async_step_back(self, user_input=None):
         return await self.async_step_init()
