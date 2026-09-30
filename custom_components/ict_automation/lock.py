@@ -19,6 +19,8 @@ class ICTDoor(LockEntity):
         self._attr_unique_id = f"ict_door_{door_id}"
         self._is_locked = True
         self._is_open = False
+        self._attr_extra_state_attributes = {}
+        self._update_door_state()
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -38,16 +40,37 @@ class ICTDoor(LockEntity):
         if update["type"] == "door" and update["id"] == self._door_id:
             self._is_locked = update["locked"]
             self._is_open = update["open"]
+            self._update_door_state()
             self.async_write_ha_state()
 
+    def _update_door_state(self):
+        """Expose a human-friendly combined door/contact state on the lock entity."""
+        if self._is_open:
+            door_state = "Open"
+            self._attr_icon = "mdi:door-open"
+        elif self._is_locked:
+            door_state = "Locked"
+            self._attr_icon = "mdi:door-closed-lock"
+        else:
+            door_state = "Closed"
+            self._attr_icon = "mdi:door-closed"
+
+        self._attr_extra_state_attributes["door_state"] = door_state
+
     @property
-    def is_locked(self): return self._is_locked
-    
+    def is_locked(self):
+        return self._is_locked
+
     @property
-    def is_open(self): return self._is_open
+    def is_open(self):
+        return self._is_open
 
     async def async_lock(self, **kwargs):
+        # Protege door command 0x00 = lock.
         await self._client.send_command(0x01, 0x00, self._door_id)
 
     async def async_unlock(self, **kwargs):
-        await self._client.send_command(0x01, 0x02, self._door_id)
+        # Protege door command 0x01 = normal/timed unlock.
+        # This respects the door's configured activation time and avoids the
+        # area/schedule logic immediately overriding a latched unlock.
+        await self._client.send_command(0x01, 0x01, self._door_id)
