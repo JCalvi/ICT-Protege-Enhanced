@@ -2,8 +2,8 @@ import logging
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import callback
-from homeassistant.helpers.entity import DeviceInfo
 from .const import DOMAIN, CONF_OUTPUTS
+from .device import controller_device_info
 
 async def async_setup_entry(hass, entry, async_add_entities):
     client = hass.data[DOMAIN][entry.entry_id]
@@ -17,17 +17,8 @@ class ICTOutput(SwitchEntity):
         self._dev_id = dev_id
         self._attr_name = name
         self._attr_unique_id = f"ict_output_{dev_id}"
+        self._attr_device_info = controller_device_info()
         self._is_on = False
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"output_{self._dev_id}")},
-            name=self._attr_name,
-            manufacturer="Integrated Control Technology",
-            model="Protege Output",
-            via_device=(DOMAIN, "ict_controller"),
-        )
 
     async def async_added_to_hass(self):
         self._client.register_callback(self._handle_update)
@@ -39,7 +30,8 @@ class ICTOutput(SwitchEntity):
             self.async_write_ha_state()
 
     @property
-    def is_on(self): return self._is_on
+    def is_on(self):
+        return self._is_on
 
     async def async_turn_on(self, **kwargs):
         await self._client.send_command(0x03, 0x01, self._dev_id)
