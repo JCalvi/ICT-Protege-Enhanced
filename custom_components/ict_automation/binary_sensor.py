@@ -1,24 +1,28 @@
-import logging
-from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
 from homeassistant.core import callback
-from .const import DOMAIN, CONF_INPUTS, CONF_DOORS
+
+from .const import CONF_DOORS, CONF_INPUTS, DOMAIN
 from .device import controller_device_info
+from .records import effective_name
+
 
 async def async_setup_entry(hass, entry, async_add_entities):
     client = hass.data[DOMAIN][entry.entry_id]
-
-    data_in = entry.options.get(CONF_INPUTS, {})
     entities = []
-    for k, v in data_in.items():
-        entities.append(ICTInput(client, int(k), v, "input"))
-        entities.append(ICTInput(client, int(k), v, "trouble"))
 
-    data_dr = entry.options.get(CONF_DOORS, {})
-    for k, v in data_dr.items():
-        entities.append(ICTInput(client, int(k), v, "door"))
+    for record_id, record in entry.options.get(CONF_INPUTS, {}).items():
+        dev_id = int(record_id)
+        name = effective_name("Input", dev_id, record)
+        entities.append(ICTInput(client, dev_id, name, "input"))
+        entities.append(ICTInput(client, dev_id, name, "trouble"))
+
+    for record_id, record in entry.options.get(CONF_DOORS, {}).items():
+        dev_id = int(record_id)
+        name = effective_name("Door", dev_id, record)
+        entities.append(ICTInput(client, dev_id, name, "door"))
 
     async_add_entities(entities)
+
 
 class ICTInput(BinarySensorEntity):
     def __init__(self, client, dev_id, name, sensor_type):
