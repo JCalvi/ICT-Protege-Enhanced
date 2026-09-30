@@ -4,6 +4,26 @@ All notable changes to this fork will be documented in this file.
 
 This project is forked from the original [`caboose014/ICT-Protege-Home-Assistant`](https://github.com/caboose014/ICT-Protege-Home-Assistant) integration by **caboose014**. Earlier history belongs to the upstream project; entries below document changes made in this fork.
 
+## 1.11.0 - 2026-09-30
+
+### Added
+- Added a single **Manage Protege Entities** screen for Doors, Areas, Inputs and Outputs.
+- Added transactional add/remove diff handling with a confirmation screen before any record is removed.
+- Added structured record metadata with separate `programmed_name` and `custom_name` values.
+- Added safe migration helpers for legacy string-based record names.
+
+### Changed
+- Replaced the separate Add Door / Add Area / Add Input / Add Output / Remove Device menu entries with one four-section multi-select manager.
+- Existing configured records are preselected; selecting a record adds it and clearing it removes it.
+- With WX Name Lookup configured, the manager loads actual programmed names and available record IDs from the controller.
+- Existing custom names are preserved while programmed WX names can continue to refresh.
+- Renaming an entity now stores only a Home Assistant override; clearing that override returns the entity to its Protege programmed name.
+- Discover / Rescan Devices remains available as a fallback and discovery tool.
+
+### Compatibility
+- Stable entity unique IDs are unchanged (`ict_door_<id>`, `ict_area_<id>`, `ict_input_<id>`, etc.), so retained records keep their existing Home Assistant identity.
+- Legacy record dictionaries such as `{"1": "Door Name"}` remain readable and are normalized automatically when records are managed, scanned or renamed.
+
 ## 1.10.0 - 2026-09-30
 
 ### Changed
