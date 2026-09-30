@@ -1,15 +1,20 @@
-import logging
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import callback
-from .const import DOMAIN, CONF_OUTPUTS
+
+from .const import CONF_OUTPUTS, DOMAIN
 from .device import controller_device_info
+from .records import effective_name
+
 
 async def async_setup_entry(hass, entry, async_add_entities):
     client = hass.data[DOMAIN][entry.entry_id]
     data = entry.options.get(CONF_OUTPUTS, {})
-    entities = [ICTOutput(client, int(k), v) for k, v in data.items()]
+    entities = [
+        ICTOutput(client, int(record_id), effective_name("Output", int(record_id), record))
+        for record_id, record in data.items()
+    ]
     async_add_entities(entities)
+
 
 class ICTOutput(SwitchEntity):
     def __init__(self, client, dev_id, name):
