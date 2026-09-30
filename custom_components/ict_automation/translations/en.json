@@ -3,11 +3,13 @@
     "step": {
       "user": {
         "title": "Connect to ICT Protege",
-        "description": "Enter the details for your ICT Controller's Automation Service (TCP Port 21000).",
+        "description": "Enter the Automation and Control service details. Protege WX web operator credentials are optional and are used only to retrieve programmed names during scans.",
         "data": {
           "host": "Controller IP Address",
           "port": "Port (Default: 21000)",
-          "password": "Service PIN (User Code)"
+          "password": "Service PIN (User Code)",
+          "wx_username": "WX Web Operator Username (Optional)",
+          "wx_password": "WX Web Operator Password (Optional)"
         }
       }
     },
@@ -97,12 +99,12 @@
       },
       "scan_all": {
         "title": "Scan All Devices",
-        "description": "How many IDs should we check for each type? (Starting from ID 1)",
+        "description": "Scan database record IDs starting at ID 0. If WX web operator credentials are configured, programmed names are retrieved automatically and sparse database IDs are handled correctly.",
         "data": {
-          "limit_areas": "Scan Areas (1 to X)",
-          "limit_doors": "Scan Doors (1 to X)",
-          "limit_inputs": "Scan Inputs (1 to X)",
-          "limit_outputs": "Scan Outputs (1 to X)"
+          "limit_areas": "Highest Area ID to Scan",
+          "limit_doors": "Highest Door ID to Scan",
+          "limit_inputs": "Highest Input ID to Scan",
+          "limit_outputs": "Highest Output ID to Scan"
         }
       },
       "remove_device": {
@@ -134,27 +136,34 @@
       },
       "configure_connection": {
         "title": "Connection Settings",
+        "description": "The WX web operator username/password are optional. When supplied they are used only for read-only name lookup during scans; the Automation and Control Service PIN remains responsible for monitoring and control.",
         "data": {
           "host": "IP Address",
           "port": "Port",
-          "password": "Service PIN"
+          "password": "Service PIN",
+          "wx_username": "WX Web Operator Username (Optional)",
+          "wx_password": "WX Web Operator Password (Optional)"
         }
       },
       "scan_doors": {
         "title": "Scan Doors",
-        "data": { "limit": "Limit" }
+        "description": "Scans from database ID 0 up to the selected maximum. With WX web credentials configured, actual programmed door names are used.",
+        "data": { "limit": "Highest Door ID" }
       },
       "scan_areas": {
         "title": "Scan Areas",
-        "data": { "limit": "Limit" }
+        "description": "Scans from database ID 0 up to the selected maximum. With WX web credentials configured, actual programmed area names are used.",
+        "data": { "limit": "Highest Area ID" }
       },
       "scan_inputs": {
         "title": "Scan Inputs",
-        "data": { "limit": "Limit" }
+        "description": "Scans from database ID 0 up to the selected maximum. With WX web credentials configured, actual programmed input names are used.",
+        "data": { "limit": "Highest Input ID" }
       },
       "scan_outputs": {
         "title": "Scan Outputs",
-        "data": { "limit": "Limit" }
+        "description": "Scans from database ID 0 up to the selected maximum. With WX web credentials configured, actual programmed output names are used.",
+        "data": { "limit": "Highest Output ID" }
       },
       "raw_editor": {
         "title": "Edit Config YAML",
