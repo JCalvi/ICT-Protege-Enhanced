@@ -1,27 +1,27 @@
 import asyncio
 import logging
-import yaml
-import voluptuous as vol
 
+import voluptuous as vol
+import yaml
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import entity_registry as er, selector
 
 from .const import (
-    DOMAIN,
-    CONF_HOST,
-    CONF_PORT,
-    CONF_PASSWORD,
-    CONF_WX_USERNAME,
-    CONF_WX_PASSWORD,
-    CONF_DOORS,
     CONF_AREAS,
+    CONF_DOORS,
+    CONF_ENABLE_AWAY,
+    CONF_ENABLE_BYPASS,
+    CONF_ENABLE_NIGHT,
+    CONF_ENABLE_STAY,
+    CONF_HOST,
     CONF_INPUTS,
     CONF_OUTPUTS,
-    CONF_ENABLE_AWAY,
-    CONF_ENABLE_STAY,
-    CONF_ENABLE_NIGHT,
-    CONF_ENABLE_BYPASS,
+    CONF_PASSWORD,
+    CONF_PORT,
+    CONF_WX_PASSWORD,
+    CONF_WX_USERNAME,
+    DOMAIN,
 )
 from .ict_library import ICTClient
 from .wx_api import ProtegeWXAPI
@@ -41,17 +41,17 @@ class ICTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema({
-                vol.Required(CONF_HOST): str,
-                vol.Required(CONF_PORT, default=21000): int,
-                vol.Required(CONF_PASSWORD): selector.TextSelector(
-                    selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
-                ),
-                vol.Optional(CONF_WX_USERNAME, default=""): str,
-                vol.Optional(CONF_WX_PASSWORD, default=""): selector.TextSelector(
-                    selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
-                ),
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_HOST): str,
+                    vol.Required(CONF_PORT, default=21000): int,
+                    vol.Required(CONF_PASSWORD): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.PASSWORD
+                        )
+                    ),
+                }
+            ),
         )
 
     @staticmethod
@@ -97,6 +97,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                 "scan_devices",
                 "configure_arming",
                 "configure_connection",
+                "configure_wx_names",
                 "add_door",
                 "add_area",
                 "add_input",
@@ -115,24 +116,26 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="configure_arming",
-            data_schema=vol.Schema({
-                vol.Required(
-                    CONF_ENABLE_AWAY,
-                    default=self.options.get(CONF_ENABLE_AWAY, True),
-                ): bool,
-                vol.Required(
-                    CONF_ENABLE_STAY,
-                    default=self.options.get(CONF_ENABLE_STAY, True),
-                ): bool,
-                vol.Required(
-                    CONF_ENABLE_NIGHT,
-                    default=self.options.get(CONF_ENABLE_NIGHT, True),
-                ): bool,
-                vol.Optional(
-                    CONF_ENABLE_BYPASS,
-                    default=self.options.get(CONF_ENABLE_BYPASS, False),
-                ): bool,
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_ENABLE_AWAY,
+                        default=self.options.get(CONF_ENABLE_AWAY, True),
+                    ): bool,
+                    vol.Required(
+                        CONF_ENABLE_STAY,
+                        default=self.options.get(CONF_ENABLE_STAY, True),
+                    ): bool,
+                    vol.Required(
+                        CONF_ENABLE_NIGHT,
+                        default=self.options.get(CONF_ENABLE_NIGHT, True),
+                    ): bool,
+                    vol.Optional(
+                        CONF_ENABLE_BYPASS,
+                        default=self.options.get(CONF_ENABLE_BYPASS, False),
+                    ): bool,
+                }
+            ),
         )
 
     async def async_step_raw_editor(self, user_input=None):
@@ -170,11 +173,15 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="raw_editor",
-            data_schema=vol.Schema({
-                vol.Required("config_yaml", default=yaml_str): selector.TextSelector(
-                    selector.TextSelectorConfig(multiline=True)
-                )
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        "config_yaml", default=yaml_str
+                    ): selector.TextSelector(
+                        selector.TextSelectorConfig(multiline=True)
+                    )
+                }
+            ),
             errors=errors,
         )
 
@@ -213,19 +220,23 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         )
 
     def _get_schema_wizard(self):
-        return vol.Schema({
-            vol.Required("dev_id"): int,
-            vol.Required("name"): str,
-            vol.Required("next_action", default="add_more"): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=[
-                        {"value": "add_more", "label": "Save & Add Another"},
-                        {"value": "finish", "label": "Save & Finish"},
-                    ],
-                    mode=selector.SelectSelectorMode.LIST,
-                )
-            ),
-        })
+        return vol.Schema(
+            {
+                vol.Required("dev_id"): int,
+                vol.Required("name"): str,
+                vol.Required(
+                    "next_action", default="add_more"
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[
+                            {"value": "add_more", "label": "Save & Add Another"},
+                            {"value": "finish", "label": "Save & Finish"},
+                        ],
+                        mode=selector.SelectSelectorMode.LIST,
+                    )
+                ),
+            }
+        )
 
     async def async_step_add_door(self, user_input=None):
         return await self._add_item_step(
@@ -305,16 +316,17 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             selector.SelectOptionDict(value=str(k), label=f"{k}: {v}")
             for k, v in storage_dict.items()
         ]
-
-        schema = vol.Schema({
-            vol.Required("items"): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=options_list,
-                    mode=selector.SelectSelectorMode.DROPDOWN,
-                    multiple=True,
+        schema = vol.Schema(
+            {
+                vol.Required("items"): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=options_list,
+                        mode=selector.SelectSelectorMode.DROPDOWN,
+                        multiple=True,
+                    )
                 )
-            )
-        })
+            }
+        )
         return self.async_show_form(step_id=step_id, data_schema=schema)
 
     async def async_step_remove_door(self, user_input=None):
@@ -356,17 +368,18 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             selector.SelectOptionDict(value=str(k), label=f"{k}: {v}")
             for k, v in storage_dict.items()
         ]
-
         return self.async_show_form(
             step_id=step_id,
-            data_schema=vol.Schema({
-                vol.Required("item"): selector.SelectSelector(
-                    selector.SelectSelectorConfig(
-                        options=options_list,
-                        mode=selector.SelectSelectorMode.DROPDOWN,
+            data_schema=vol.Schema(
+                {
+                    vol.Required("item"): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=options_list,
+                            mode=selector.SelectSelectorMode.DROPDOWN,
+                        )
                     )
-                )
-            }),
+                }
+            ),
         )
 
     async def async_step_edit_confirm(self, user_input=None):
@@ -389,9 +402,9 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="edit_confirm",
-            data_schema=vol.Schema({
-                vol.Required("name", default=storage.get(self._edit_id, "")): str
-            }),
+            data_schema=vol.Schema(
+                {vol.Required("name", default=storage.get(self._edit_id, "")): str}
+            ),
             description_placeholders={"id": str(self._edit_id)},
         )
 
@@ -431,12 +444,14 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="scan_all",
-            data_schema=vol.Schema({
-                vol.Required("limit_areas", default=10): int,
-                vol.Required("limit_doors", default=20): int,
-                vol.Required("limit_outputs", default=20): int,
-                vol.Required("limit_inputs", default=100): int,
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Required("limit_areas", default=10): int,
+                    vol.Required("limit_doors", default=20): int,
+                    vol.Required("limit_outputs", default=20): int,
+                    vol.Required("limit_inputs", default=100): int,
+                }
+            ),
         )
 
     async def async_step_scan_doors(self, user_input=None):
@@ -472,29 +487,25 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         )
 
     async def _get_wx_name_maps(self):
-        """Fetch programmed record names from the read-only Protege WX DLL API."""
         username = str(self.data.get(CONF_WX_USERNAME, "")).strip()
         password = str(self.data.get(CONF_WX_PASSWORD, ""))
 
         if not username or not password:
             return {}
 
-        api = ProtegeWXAPI(
-            self.data[CONF_HOST],
-            username,
-            password,
-        )
-
+        api = ProtegeWXAPI(self.data[CONF_HOST], username, password)
         try:
-            return await api.fetch_name_maps({
-                CONF_DOORS: "GXT_DOORS_TBL",
-                CONF_AREAS: "GXT_AREAS_TBL",
-                CONF_INPUTS: "GXT_INPUTS_TBL",
-                CONF_OUTPUTS: "GXT_PGMS_TBL",
-            })
+            return await api.fetch_name_maps(
+                {
+                    CONF_DOORS: "GXT_DOORS_TBL",
+                    CONF_AREAS: "GXT_AREAS_TBL",
+                    CONF_INPUTS: "GXT_INPUTS_TBL",
+                    CONF_OUTPUTS: "GXT_PGMS_TBL",
+                }
+            )
         except Exception as err:
             _LOGGER.warning(
-                "Could not retrieve Protege WX names; falling back to generic scan names: %s",
+                "Could not retrieve Protege WX names; falling back to generic names: %s",
                 err,
             )
             return {}
@@ -519,17 +530,17 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             client = ICTClient(
                 self.data[CONF_HOST],
                 self.data[CONF_PORT],
-                self.data[CONF_PASSWORD],
+                self.data.get(CONF_PASSWORD, ""),
             )
             if not await client.start_temp_connection():
                 return self.async_abort(reason="cannot_connect")
             is_temp = True
 
-        if not await client.authenticate():
-            if is_temp:
-                await client.stop()
-            return self.async_abort(reason="invalid_auth")
-
+        # Scanning is read-only and only sends status requests. The documented
+        # integration prerequisite is "Allow Status Requests When Not Logged In",
+        # so do not perform a Service PIN login just to scan records. This also
+        # keeps WX web-operator authentication completely separate from the
+        # Automation Service PIN used for door/area/output control.
         name_maps = await self._get_wx_name_maps()
 
         if limit_areas > 0:
@@ -591,43 +602,35 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
     ):
         name_map = name_map or {}
 
-        # When the WX DLL API supplied the programmed record list, use those
-        # IDs directly. This gives us the actual record names and also handles
-        # sparse databases without stopping after five unused IDs.
         if name_map:
-            for i, actual_name in sorted(name_map.items()):
-                if i < 0 or i > limit:
+            for record_id, actual_name in sorted(name_map.items()):
+                if record_id < 0 or record_id > limit:
                     continue
 
-                exists = await client.check_exists(group, i)
+                exists = await client.check_exists(group, record_id)
                 await asyncio.sleep(0.1)
                 if not exists:
                     continue
 
-                current_name = storage.get(i)
-                generic_name = f"{name_prefix} {i}"
-
-                # Preserve names the user has manually edited. Replace only a
-                # missing name or the generic name produced by an older scan.
+                current_name = storage.get(record_id)
+                generic_name = f"{name_prefix} {record_id}"
                 if not current_name or current_name == generic_name:
-                    storage[i] = actual_name
+                    storage[record_id] = actual_name
 
             self.options[conf_key] = storage
             return
 
-        # GX, older WX versions, or WX systems without web operator credentials
-        # retain the Automation Service-only scanning behaviour.
         consecutive_fails = 0
-        for i in range(0, limit + 1):
-            if i in storage:
+        for record_id in range(0, limit + 1):
+            if record_id in storage:
                 consecutive_fails = 0
                 continue
 
-            exists = await client.check_exists(group, i)
+            exists = await client.check_exists(group, record_id)
             await asyncio.sleep(0.1)
 
             if exists:
-                storage[i] = f"{name_prefix} {i}"
+                storage[record_id] = f"{name_prefix} {record_id}"
                 consecutive_fails = 0
             else:
                 consecutive_fails += 1
@@ -638,43 +641,98 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_configure_connection(self, user_input=None):
         if user_input is not None:
+            merged = dict(self.data)
+            merged[CONF_HOST] = user_input[CONF_HOST]
+            merged[CONF_PORT] = user_input[CONF_PORT]
+
+            # Password selectors are deliberately blank on edit. A blank value
+            # means "keep the existing Service PIN" rather than overwriting it.
+            new_pin = str(user_input.get(CONF_PASSWORD, "")).strip()
+            if new_pin:
+                merged[CONF_PASSWORD] = new_pin
+
             self.hass.config_entries.async_update_entry(
                 self._config_entry,
-                data=user_input,
+                data=merged,
             )
-            self.data = dict(user_input)
+            self.data = merged
             return self.async_create_entry(title="", data=self.options)
 
-        schema = vol.Schema({
-            vol.Required(
-                CONF_HOST,
-                default=self.data.get(CONF_HOST),
-            ): str,
-            vol.Required(
-                CONF_PORT,
-                default=self.data.get(CONF_PORT),
-            ): int,
-            vol.Required(
-                CONF_PASSWORD,
-                default=self.data.get(CONF_PASSWORD),
-            ): selector.TextSelector(
-                selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
-            ),
-            vol.Optional(
-                CONF_WX_USERNAME,
-                default=self.data.get(CONF_WX_USERNAME, ""),
-            ): str,
-            vol.Optional(
-                CONF_WX_PASSWORD,
-                default=self.data.get(CONF_WX_PASSWORD, ""),
-            ): selector.TextSelector(
-                selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
-            ),
-        })
-
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_HOST, default=self.data.get(CONF_HOST)
+                ): str,
+                vol.Required(
+                    CONF_PORT, default=self.data.get(CONF_PORT)
+                ): int,
+                vol.Optional(CONF_PASSWORD, default=""): selector.TextSelector(
+                    selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.PASSWORD
+                    )
+                ),
+            }
+        )
         return self.async_show_form(
             step_id="configure_connection",
             data_schema=schema,
+        )
+
+    async def async_step_configure_wx_names(self, user_input=None):
+        errors = {}
+
+        if user_input is not None:
+            username = str(user_input.get(CONF_WX_USERNAME, "")).strip()
+            new_password = str(user_input.get(CONF_WX_PASSWORD, ""))
+            merged = dict(self.data)
+
+            if not username:
+                merged.pop(CONF_WX_USERNAME, None)
+                merged.pop(CONF_WX_PASSWORD, None)
+                self.hass.config_entries.async_update_entry(
+                    self._config_entry,
+                    data=merged,
+                )
+                self.data = merged
+                return self.async_create_entry(title="", data=self.options)
+
+            password = new_password or str(merged.get(CONF_WX_PASSWORD, ""))
+            if not password:
+                errors["base"] = "wx_auth"
+            else:
+                try:
+                    api = ProtegeWXAPI(merged[CONF_HOST], username, password)
+                    await api.fetch_name_maps({CONF_DOORS: "GXT_DOORS_TBL"})
+                except Exception as err:
+                    _LOGGER.warning("Protege WX web login/name lookup failed: %s", err)
+                    errors["base"] = "wx_auth"
+                else:
+                    merged[CONF_WX_USERNAME] = username
+                    merged[CONF_WX_PASSWORD] = password
+                    self.hass.config_entries.async_update_entry(
+                        self._config_entry,
+                        data=merged,
+                    )
+                    self.data = merged
+                    return self.async_create_entry(title="", data=self.options)
+
+        schema = vol.Schema(
+            {
+                vol.Optional(
+                    CONF_WX_USERNAME,
+                    default=self.data.get(CONF_WX_USERNAME, ""),
+                ): str,
+                vol.Optional(CONF_WX_PASSWORD, default=""): selector.TextSelector(
+                    selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.PASSWORD
+                    )
+                ),
+            }
+        )
+        return self.async_show_form(
+            step_id="configure_wx_names",
+            data_schema=schema,
+            errors=errors,
         )
 
     async def async_step_back(self, user_input=None):
