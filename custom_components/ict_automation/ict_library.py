@@ -23,6 +23,8 @@ class ICTClient:
         self._shutdown = False
         self._scan_response = None
         self._scan_event = asyncio.Event()
+        self._scan_target_group = None
+        self._scan_target_idx = None
         self._login_event = asyncio.Event()
         self._login_success = False
         self._tasks = []
@@ -36,8 +38,8 @@ class ICTClient:
         for d in doors: self.monitored_items.append((0x00, 0x01, d))
         for a in areas: self.monitored_items.append((0x00, 0x02, a))
         for o in outputs: self.monitored_items.append((0x00, 0x03, o))
-        for i in inputs: 
-            self.monitored_items.append((0x00, 0x04, i)) 
+        for i in inputs:
+            self.monitored_items.append((0x00, 0x04, i))
             self.monitored_items.append((0x00, 0x06, i))
 
     async def start(self):
@@ -116,18 +118,33 @@ class ICTClient:
         for (type_h, type_l, idx) in self.monitored_items:
             payload = bytearray([type_l, type_h]) + struct.pack('<I', idx) + bytearray([0x03, 0x00])
             await self._send_raw(0x00, 0x05, payload)
-            await asyncio.sleep(0.02) 
+            await asyncio.sleep(0.02)
 
-    async def check_exists(self, group, idx):
-        if not self._connected: return False
-        self._scan_response = None
-        self._scan_event.clear()
-        idx_bytes = struct.pack('<I', idx)
-        await self._send_raw(group, 0x80, idx_bytes)
-        try:
-            await asyncio.wait_for(self._scan_event.wait(), timeout=2.0)
-            return self._scan_response
-        except asyncio.TimeoutError: return False 
+    async def check_exists(self, group, idx, timeout=0.5):
+        """Request one record status and only accept a matching response.
+
+        Older scan logic treated any incoming DATA packet as proof that the
+        requested record existed. On a live Protege connection, unrelated
+        monitoring updates therefore produced false-positive record IDs.
+        """
+        if not self._connected:
+            return False
+
+        async with self._lock:
+            self._scan_response = None
+            self._scan_target_group = int(group)
+            self._scan_target_idx = int(idx)
+            self._scan_event.clear()
+            idx_bytes = struct.pack('<I', idx)
+            await self._send_raw(group, 0x80, idx_bytes)
+            try:
+                await asyncio.wait_for(self._scan_event.wait(), timeout=timeout)
+                return bool(self._scan_response)
+            except asyncio.TimeoutError:
+                return False
+            finally:
+                self._scan_target_group = None
+                self._scan_target_idx = None
 
     async def send_command(self, group, sub, index_id):
         await self._execute_transient(group, sub, index_id, self.service_pin)
@@ -139,17 +156,17 @@ class ICTClient:
         async with self._lock:
             if not self._connected: return False
             if not await self._perform_login(pin): return False
-            
+
             await self._send_raw(group, sub, struct.pack('<I', index_id))
             await asyncio.sleep(0.3)
-            
-            await self._send_raw(0x00, 0x03, b'') 
+
+            await self._send_raw(0x00, 0x03, b'')
             await asyncio.sleep(0.5)
-            
+
             await self._update_monitoring()
             await asyncio.sleep(0.2)
             await self._send_raw(group, 0x80, struct.pack('<I', index_id))
-            
+
             return True
 
     async def _perform_login(self, pin_code):
@@ -160,13 +177,13 @@ class ICTClient:
             payload = bytearray(digits)
             if len(digits) < 6: payload.append(0xFF)
             await self._send_raw(0x00, 0x02, payload)
-            return True 
+            return True
         except: return False
 
     async def _send_raw(self, group, sub, data):
         if not self._writer: return
         payload = bytearray([group, sub]) + data
-        wrapper = bytearray([0x00, 0x00]) + payload 
+        wrapper = bytearray([0x00, 0x00]) + payload
         length = 5 + len(wrapper)
         full = bytearray([0x49, 0x43]) + struct.pack('<H', length) + wrapper
         full.append(sum(full) % 256)
@@ -180,7 +197,7 @@ class ICTClient:
         while self._connected:
             try:
                 chunk = await self._reader.read(1024)
-                if not chunk: 
+                if not chunk:
                     await self.disconnect()
                     break
                 buffer.extend(chunk)
@@ -193,16 +210,40 @@ class ICTClient:
                     packet = buffer[:length]
                     del buffer[:length]
                     self._handle_packet(packet)
-            except: 
+            except:
                 await self.disconnect()
                 break
+
+    def _data_contains_scan_target(self, data):
+        """Return True only if a DATA stream contains the requested record."""
+        target_group = self._scan_target_group
+        target_idx = self._scan_target_idx
+        if target_group is None or target_idx is None:
+            return False
+
+        i = 0
+        while i < len(data) - 2:
+            type_l = data[i]
+            type_h = data[i + 1]
+            length = data[i + 2]
+            body = data[i + 3 : i + 3 + length]
+            if type_l == 0xFF and type_h == 0xFF:
+                break
+            if (
+                type_h == target_group
+                and len(body) >= 4
+                and struct.unpack('<I', body[0:4])[0] == target_idx
+            ):
+                return True
+            i += 3 + length
+        return False
 
     def _handle_packet(self, packet):
         try:
             pkt_type = packet[4]
             if not self._login_event.is_set():
                 if pkt_type == PKT_TYPE_SYSTEM and len(packet) >= 8:
-                    if packet[6] == 0xFF and packet[7] == 0xFF: 
+                    if packet[6] == 0xFF and packet[7] == 0xFF:
                         self._login_success = False
                         self._login_event.set()
                         return
@@ -214,18 +255,19 @@ class ICTClient:
                     self._login_success = True
                     self._login_event.set()
 
-            if self._scan_event and not self._scan_event.is_set():
-                if pkt_type == PKT_TYPE_SYSTEM and len(packet) >= 8: 
-                     if packet[6] == 0xFF and packet[7] == 0xFF:
-                         self._scan_response = False
-                         self._scan_event.set()
-                         return
+            if self._scan_target_group is not None and not self._scan_event.is_set():
+                if pkt_type == PKT_TYPE_SYSTEM and len(packet) >= 8:
+                    if packet[6] == 0xFF and packet[7] == 0xFF:
+                        self._scan_response = False
+                        self._scan_event.set()
+                        return
                 if pkt_type == PKT_TYPE_DATA:
-                     self._scan_response = True
-                     self._scan_event.set()
-                     return
+                    data_section = packet[6:-1]
+                    if self._data_contains_scan_target(data_section):
+                        self._scan_response = True
+                        self._scan_event.set()
 
-            if pkt_type == PKT_TYPE_DATA: 
+            if pkt_type == PKT_TYPE_DATA:
                 data_section = packet[6:-1]
                 self._parse_data_stream(data_section)
         except Exception: pass
@@ -245,13 +287,13 @@ class ICTClient:
         update = {}
         try:
             idx = struct.unpack('<I', body[0:4])[0]
-            if type_h == 0x01: 
+            if type_h == 0x01:
                 is_locked = (body[4] == 0)
                 is_open = (body[5] > 0)
                 update = {"type": "door", "id": idx, "locked": is_locked, "open": is_open}
             elif type_h == 0x02: update = {"type": "area", "id": idx, "armed": (body[4] >= 0x80), "alarm": ((body[6] & 0x01) > 0)}
             elif type_h == 0x03: update = {"type": "output", "id": idx, "on": (body[12] > 0)}
-            elif type_h == 0x04: 
+            elif type_h == 0x04:
                 state_val = body[12]
                 bypassed = (body[13] & 0x01) > 0
                 state_desc = "Closed"
@@ -265,9 +307,9 @@ class ICTClient:
         except: pass
 
     async def disconnect(self):
-        for t in self._tasks: 
+        for t in self._tasks:
             if not t.done(): t.cancel()
-        if self._writer: 
+        if self._writer:
             self._writer.close()
             try: await self._writer.wait_closed()
             except: pass
