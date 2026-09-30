@@ -4,6 +4,23 @@ All notable changes to this fork will be documented in this file.
 
 This project is forked from the original [`caboose014/ICT-Protege-Home-Assistant`](https://github.com/caboose014/ICT-Protege-Home-Assistant) integration by **caboose014**. Earlier history belongs to the upstream project; entries below document changes made in this fork.
 
+## 2.0.4 - 2026-09-30
+
+### Fixed
+- Restored the Protege WX read-only database-list behaviour that works without an operator login on controllers exposing the `Request&Type=List` URLs anonymously.
+- WX database discovery now tries anonymous HTTPS list requests first instead of refusing to attempt name lookup when no WX operator credentials are stored.
+- Optional WX operator credentials are now used only as a fallback when anonymous database-list access is unavailable.
+- Operator credential validation explicitly tests the operator login itself, so an anonymously accessible list endpoint cannot make invalid fallback credentials appear valid.
+- Search source text now reports whether the authoritative WX database was read anonymously or through an operator login.
+
+### Changed
+- Renamed the configuration menu entry from **Configure WX Name Lookup** to **Configure WX Operator Fallback** to reflect that credentials are optional rather than inherently required for names.
+- Updated the README and options-flow help text to document the lookup order: anonymous WX database list → optional operator login → Automation Service fallback.
+
+### Notes
+- The WX database list remains the authoritative source for complete Door, Area, Input and Output record IDs and programmed names.
+- The Automation Service scanner remains a best-effort fallback for GX systems or when the WX database endpoints are unavailable.
+
 ## 2.0.3 - 2026-09-30
 
 ### Fixed
