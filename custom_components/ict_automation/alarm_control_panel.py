@@ -1,15 +1,20 @@
-import logging
 from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelEntity,
     AlarmControlPanelEntityFeature,
     CodeFormat,
 )
 from homeassistant.core import callback
+
 from .const import (
-    DOMAIN, CONF_AREAS,
-    CONF_ENABLE_AWAY, CONF_ENABLE_STAY, CONF_ENABLE_NIGHT, CONF_ENABLE_BYPASS
+    CONF_AREAS,
+    CONF_ENABLE_AWAY,
+    CONF_ENABLE_BYPASS,
+    CONF_ENABLE_NIGHT,
+    CONF_ENABLE_STAY,
+    DOMAIN,
 )
 from .device import controller_device_info
+from .records import effective_name
 
 STATE_ALARM_DISARMED = "disarmed"
 STATE_ALARM_ARMED_HOME = "armed_home"
@@ -18,7 +23,6 @@ STATE_ALARM_ARMED_NIGHT = "armed_night"
 STATE_ALARM_TRIGGERED = "triggered"
 STATE_ALARM_ARMING = "arming"
 
-_LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, entry, async_add_entities):
     client = hass.data[DOMAIN][entry.entry_id]
@@ -29,9 +33,18 @@ async def async_setup_entry(hass, entry, async_add_entities):
     enable_bypass = entry.options.get(CONF_ENABLE_BYPASS, False)
 
     async_add_entities([
-        ICTArea(client, int(k), v, enable_away, enable_stay, enable_night, enable_bypass)
-        for k, v in data.items()
+        ICTArea(
+            client,
+            int(record_id),
+            effective_name("Area", int(record_id), record),
+            enable_away,
+            enable_stay,
+            enable_night,
+            enable_bypass,
+        )
+        for record_id, record in data.items()
     ])
+
 
 class ICTArea(AlarmControlPanelEntity):
     def __init__(self, client, area_id, name, enable_away, enable_stay, enable_night, enable_bypass):
@@ -74,26 +87,21 @@ class ICTArea(AlarmControlPanelEntity):
         return self._state
 
     async def async_alarm_disarm(self, code=None) -> None:
-        if not code:
-            return
-        await self._client.send_command_with_pin(0x02, 0x02, self._area_id, code)
+        if code:
+            await self._client.send_command_with_pin(0x02, 0x02, self._area_id, code)
 
     async def async_alarm_arm_away(self, code=None) -> None:
-        if not code:
-            return
-        await self._client.send_command_with_pin(0x02, 0x01, self._area_id, code)
+        if code:
+            await self._client.send_command_with_pin(0x02, 0x01, self._area_id, code)
 
     async def async_alarm_arm_home(self, code=None) -> None:
-        if not code:
-            return
-        await self._client.send_command_with_pin(0x02, 0x03, self._area_id, code)
+        if code:
+            await self._client.send_command_with_pin(0x02, 0x03, self._area_id, code)
 
     async def async_alarm_arm_night(self, code=None) -> None:
-        if not code:
-            return
-        await self._client.send_command_with_pin(0x02, 0x04, self._area_id, code)
+        if code:
+            await self._client.send_command_with_pin(0x02, 0x04, self._area_id, code)
 
     async def async_alarm_arm_vacation(self, code=None) -> None:
-        if not code:
-            return
-        await self._client.send_command_with_pin(0x02, 0x01, self._area_id, code)
+        if code:
+            await self._client.send_command_with_pin(0x02, 0x01, self._area_id, code)
