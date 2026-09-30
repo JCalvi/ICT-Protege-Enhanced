@@ -27,7 +27,6 @@
         "title": "ICT Setup Menu",
         "menu_options": {
           "manage_entities": "Manage Protege Entities",
-          "scan_devices": "Discover / Rescan Devices",
           "edit_device": "Rename Entity",
           "configure_arming": "Configure Arming Modes",
           "configure_connection": "Edit Automation Service Connection",
@@ -37,12 +36,41 @@
       },
       "manage_entities": {
         "title": "Manage Protege Entities",
-        "description": "Select exactly which Protege records Home Assistant should expose. Existing records are preselected. Select a record to add it; clear it to remove it. Source: {source}.",
+        "description": "Search the controller, choose which records Home Assistant exposes, or manually add a database ID that discovery cannot find.",
+        "menu_options": {
+          "manage_search": "Search / Refresh Controller",
+          "manage_select": "Select / Remove Entities",
+          "manual_add": "Manually Add Entity",
+          "back": "Back to Main Menu"
+        }
+      },
+      "manage_search": {
+        "title": "Search / Refresh Controller",
+        "description": "Search the Protege controller for available records. With WX Name Lookup configured, sparse IDs and programmed names are retrieved automatically. Searching does not enable newly discovered records; you choose them on the next screen.",
+        "data": {
+          "limit_doors": "Highest Door ID to Scan (fallback only)",
+          "limit_areas": "Highest Area ID to Scan (fallback only)",
+          "limit_inputs": "Highest Input ID to Scan (fallback only)",
+          "limit_outputs": "Highest Output ID to Scan (fallback only)"
+        }
+      },
+      "manage_select": {
+        "title": "Select Protege Entities",
+        "description": "Existing records are preselected. Select a record to add it; clear it to remove it. Source: {source}.",
         "data": {
           "doors": "Doors",
           "areas": "Areas",
           "inputs": "Inputs",
           "outputs": "Outputs"
+        }
+      },
+      "manual_add": {
+        "title": "Manually Add Protege Entity",
+        "description": "Use this when controller discovery does not expose the required record. The database ID is the stable identity. The custom name is optional and can be changed later.",
+        "data": {
+          "record_type": "Record Type",
+          "record_id": "Database ID",
+          "name": "Optional Custom Name"
         }
       },
       "confirm_entity_changes": {
@@ -51,47 +79,6 @@
         "data": {
           "confirm": "Confirm these removals"
         }
-      },
-      "scan_devices": {
-        "title": "Discover / Rescan Devices",
-        "menu_options": {
-          "scan_all": "Scan All Types",
-          "scan_doors": "Scan Doors Only",
-          "scan_areas": "Scan Areas Only",
-          "scan_inputs": "Scan Inputs Only",
-          "scan_outputs": "Scan Outputs Only",
-          "back": "Back to Main Menu"
-        }
-      },
-      "scan_all": {
-        "title": "Scan All Devices",
-        "description": "Discover database IDs starting at ID 0. With WX Name Lookup configured, programmed names and sparse IDs are handled automatically.",
-        "data": {
-          "limit_doors": "Highest Door ID to Scan",
-          "limit_areas": "Highest Area ID to Scan",
-          "limit_inputs": "Highest Input ID to Scan",
-          "limit_outputs": "Highest Output ID to Scan"
-        }
-      },
-      "scan_doors": {
-        "title": "Scan Doors",
-        "description": "Discover doors from database ID 0 up to the selected maximum.",
-        "data": { "limit": "Highest Door ID" }
-      },
-      "scan_areas": {
-        "title": "Scan Areas",
-        "description": "Discover areas from database ID 0 up to the selected maximum.",
-        "data": { "limit": "Highest Area ID" }
-      },
-      "scan_inputs": {
-        "title": "Scan Inputs",
-        "description": "Discover inputs from database ID 0 up to the selected maximum.",
-        "data": { "limit": "Highest Input ID" }
-      },
-      "scan_outputs": {
-        "title": "Scan Outputs",
-        "description": "Discover outputs from database ID 0 up to the selected maximum.",
-        "data": { "limit": "Highest Output ID" }
       },
       "edit_device": {
         "title": "Rename Entity",
@@ -161,6 +148,7 @@
       }
     },
     "error": {
+      "id_exists": "A record of this type with that database ID is already configured.",
       "cannot_connect": "Could not connect to controller.",
       "invalid_auth": "Service PIN rejected.",
       "wx_auth": "Protege WX web login failed. Check the WX operator username/password.",
