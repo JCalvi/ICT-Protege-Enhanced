@@ -49,24 +49,14 @@ class ICTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None):
         if user_input is not None:
-            return self.async_create_entry(
-                title=f"ICT ({user_input[CONF_HOST]})",
-                data=user_input,
-            )
-
+            return self.async_create_entry(title=f"ICT ({user_input[CONF_HOST]})", data=user_input)
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_HOST): str,
-                    vol.Required(CONF_PORT, default=21000): int,
-                    vol.Required(CONF_PASSWORD): selector.TextSelector(
-                        selector.TextSelectorConfig(
-                            type=selector.TextSelectorType.PASSWORD
-                        )
-                    ),
-                }
-            ),
+            data_schema=vol.Schema({
+                vol.Required(CONF_HOST): str,
+                vol.Required(CONF_PORT, default=21000): int,
+                vol.Required(CONF_PASSWORD): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)),
+            }),
         )
 
     @staticmethod
@@ -80,7 +70,6 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         self._config_entry = config_entry
         self.options = dict(config_entry.options)
         self.data = dict(config_entry.data)
-
         self.options.setdefault(CONF_DOORS, {})
         self.options.setdefault(CONF_AREAS, {})
         self.options.setdefault(CONF_INPUTS, {})
@@ -89,7 +78,6 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         self.options.setdefault(CONF_ENABLE_STAY, True)
         self.options.setdefault(CONF_ENABLE_NIGHT, True)
         self.options.setdefault(CONF_ENABLE_BYPASS, False)
-
         self._edit_type = None
         self._edit_id = None
         self._manage_available = {}
@@ -106,118 +94,54 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         return value if isinstance(value, dict) else {}
 
     def _normalized_records(self, key, discovered=None):
-        return normalize_records(
-            self._raw_records(key),
-            RECORD_PREFIXES[key],
-            discovered,
-        )
+        return normalize_records(self._raw_records(key), RECORD_PREFIXES[key], discovered)
 
     def _save_options(self, new_options=None):
-        """Stage options for the standard OptionsFlow create-entry save."""
         if new_options is not None:
             self.options = new_options
 
     async def async_step_init(self, user_input=None):
-        return self.async_show_menu(
-            step_id="init",
-            menu_options=[
-                "manage_entities",
-                "configure_arming",
-                "configure_connection",
-                "configure_wx_names",
-                "raw_editor",
-            ],
-        )
+        return self.async_show_menu(step_id="init", menu_options=["manage_entities", "configure_arming", "configure_connection", "configure_wx_names", "raw_editor"])
 
     async def async_step_manage_entities(self, user_input=None):
-        return self.async_show_menu(
-            step_id="manage_entities",
-            menu_options=[
-                "manage_search",
-                "manage_select",
-                "manual_add",
-                "edit_device",
-                "back",
-            ],
-        )
+        return self.async_show_menu(step_id="manage_entities", menu_options=["manage_search", "manage_select", "manual_add", "edit_device", "back"])
 
     async def _get_wx_name_maps(self):
-        """Try Protege WX database list lookup, anonymously first."""
         username = str(self.data.get(CONF_WX_USERNAME, "")).strip()
         password = str(self.data.get(CONF_WX_PASSWORD, ""))
         api = ProtegeWXAPI(self.data[CONF_HOST], username, password)
-
         try:
-            result = await api.fetch_name_maps(
-                {
-                    CONF_DOORS: "GXT_DOORS_TBL",
-                    CONF_AREAS: "GXT_AREAS_TBL",
-                    CONF_INPUTS: "GXT_INPUTS_TBL",
-                    CONF_OUTPUTS: "GXT_PGMS_TBL",
-                }
-            )
+            result = await api.fetch_name_maps({CONF_DOORS: "GXT_DOORS_TBL", CONF_AREAS: "GXT_AREAS_TBL", CONF_INPUTS: "GXT_INPUTS_TBL", CONF_OUTPUTS: "GXT_PGMS_TBL"})
             self._wx_lookup_mode = api.last_access_mode
             return result
         except Exception as err:
             self._wx_lookup_mode = None
-            _LOGGER.warning(
-                "Could not retrieve Protege WX database lists; using Automation Service scan: %s",
-                err,
-            )
+            _LOGGER.warning("Could not retrieve Protege WX database lists; using Automation Service scan: %s", err)
             return {}
 
     async def _get_scan_client(self):
-        if (
-            DOMAIN in self.hass.data
-            and self._config_entry.entry_id in self.hass.data[DOMAIN]
-        ):
+        if DOMAIN in self.hass.data and self._config_entry.entry_id in self.hass.data[DOMAIN]:
             return self.hass.data[DOMAIN][self._config_entry.entry_id], False
-
-        client = ICTClient(
-            self.data[CONF_HOST],
-            self.data[CONF_PORT],
-            self.data.get(CONF_PASSWORD, ""),
-        )
+        client = ICTClient(self.data[CONF_HOST], self.data[CONF_PORT], self.data.get(CONF_PASSWORD, ""))
         if not await client.start_temp_connection():
             return None, False
         return client, True
 
     async def async_step_manage_search(self, user_input=None):
-        """Search the controller, then return directly to entity selection."""
         if user_input is None:
-            return self.async_show_form(
-                step_id="manage_search",
-                data_schema=vol.Schema(
-                    {
-                        vol.Required("limit_doors", default=20): int,
-                        vol.Required("limit_areas", default=10): int,
-                        vol.Required("limit_inputs", default=100): int,
-                        vol.Required("limit_outputs", default=20): int,
-                    }
-                ),
-            )
-
-        limits = {
-            CONF_DOORS: max(0, int(user_input["limit_doors"])),
-            CONF_AREAS: max(0, int(user_input["limit_areas"])),
-            CONF_INPUTS: max(0, int(user_input["limit_inputs"])),
-            CONF_OUTPUTS: max(0, int(user_input["limit_outputs"])),
-        }
-
-        wx_configured = bool(
-            str(self.data.get(CONF_WX_USERNAME, "")).strip()
-            and str(self.data.get(CONF_WX_PASSWORD, ""))
-        )
+            return self.async_show_form(step_id="manage_search", data_schema=vol.Schema({
+                vol.Required("limit_doors", default=20): int,
+                vol.Required("limit_areas", default=10): int,
+                vol.Required("limit_inputs", default=100): int,
+                vol.Required("limit_outputs", default=20): int,
+            }))
+        limits = {CONF_DOORS: max(0, int(user_input["limit_doors"])), CONF_AREAS: max(0, int(user_input["limit_areas"])), CONF_INPUTS: max(0, int(user_input["limit_inputs"])), CONF_OUTPUTS: max(0, int(user_input["limit_outputs"]))}
+        wx_configured = bool(str(self.data.get(CONF_WX_USERNAME, "")).strip() and str(self.data.get(CONF_WX_PASSWORD, "")))
         name_maps = await self._get_wx_name_maps()
         discovered = {}
-
         if name_maps:
-            # The WX database list is authoritative whether it was available
-            # anonymously or required the optional operator fallback login.
             for key, _prefix, _group, _default_limit in RECORD_SPECS:
-                discovered[key] = {
-                    int(record_id) for record_id in name_maps.get(key, {})
-                }
+                discovered[key] = {int(record_id) for record_id in name_maps.get(key, {})}
             if self._wx_lookup_mode == "anonymous":
                 source_name = "WX database (anonymous read-only lookup)"
             elif self._wx_lookup_mode == "operator":
@@ -229,7 +153,6 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             client, temporary = await self._get_scan_client()
             if client is None:
                 return self.async_abort(reason="cannot_connect")
-
             try:
                 for key, _prefix, group, _default_limit in RECORD_SPECS:
                     found = set()
@@ -248,29 +171,12 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             finally:
                 if temporary:
                     await client.stop()
-
             self._manage_authoritative = False
-            if wx_configured:
-                source_name = (
-                    "Automation Service fallback "
-                    "(anonymous WX lookup and operator fallback unavailable)"
-                )
-            else:
-                source_name = (
-                    "Automation Service fallback "
-                    "(anonymous WX database lookup unavailable)"
-                )
-
+            source_name = "Automation Service fallback (anonymous WX lookup and operator fallback unavailable)" if wx_configured else "Automation Service fallback (anonymous WX database lookup unavailable)"
         self._manage_discovered = discovered
-        self._manage_name_maps = {
-            key: name_maps.get(key, {}) for key, *_ in RECORD_SPECS
-        }
-        counts = ", ".join(
-            f"{len(discovered[key])} {prefix.lower()}s"
-            for key, prefix, *_ in RECORD_SPECS
-        )
+        self._manage_name_maps = {key: name_maps.get(key, {}) for key, *_ in RECORD_SPECS}
+        counts = ", ".join(f"{len(discovered[key])} {prefix.lower()}s" for key, prefix, *_ in RECORD_SPECS)
         self._manage_source = f"{source_name} search complete ({counts})"
-
         return await self.async_step_manage_select()
 
     def _selector_for_records(self, key, prefix):
@@ -279,98 +185,49 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         configured_ids = selected_ids(current)
         available_ids = configured_ids | self._manage_discovered.get(key, set())
         self._manage_available[key] = available_ids
-
         options = []
         for record_id in sorted(available_ids):
-            record = current.get(str(record_id))
-            if record is None:
-                record = {
-                    "programmed_name": discovered_names.get(record_id),
-                    "custom_name": None,
-                }
+            record = current.get(str(record_id)) or {"programmed_name": discovered_names.get(record_id), "custom_name": None}
             name = effective_name(prefix, record_id, record)
-            if (
-                self._manage_authoritative
-                and self._manage_discovered.get(key)
-                and record_id not in self._manage_discovered[key]
-            ):
+            if self._manage_authoritative and self._manage_discovered.get(key) and record_id not in self._manage_discovered[key]:
                 name = f"{name} (not found in current WX database)"
-            options.append(
-                selector.SelectOptionDict(
-                    value=str(record_id),
-                    label=f"{record_id} — {name}",
-                )
-            )
-
-        return selector.SelectSelector(
-            selector.SelectSelectorConfig(
-                options=options,
-                mode=selector.SelectSelectorMode.DROPDOWN,
-                multiple=True,
-            )
-        )
+            options.append(selector.SelectOptionDict(value=str(record_id), label=f"{record_id} — {name}"))
+        return selector.SelectSelector(selector.SelectSelectorConfig(options=options, mode=selector.SelectSelectorMode.DROPDOWN, multiple=True))
 
     async def async_step_manage_select(self, user_input=None):
-        """Select exactly which discovered/configured records HA exposes."""
         if user_input is not None:
             errors = {}
             proposed = dict(self.options)
             diffs = {}
-
             try:
                 for key, prefix, *_ in RECORD_SPECS:
-                    raw_selected = user_input.get(key, []) or []
-                    submitted = {int(value) for value in raw_selected}
-                    if any(record_id < 0 for record_id in submitted):
-                        raise ValueError("negative ID")
-                    if not submitted.issubset(self._manage_available.get(key, set())):
-                        raise ValueError("unknown submitted ID")
-
-                    proposed[key] = build_selected_records(
-                        prefix,
-                        self._raw_records(key),
-                        submitted,
-                        self._manage_name_maps.get(key, {}),
-                    )
-                    diffs[key] = diff_record_sets(
-                        self._raw_records(key), proposed[key]
-                    )
+                    submitted = {int(value) for value in (user_input.get(key, []) or [])}
+                    if any(record_id < 0 for record_id in submitted) or not submitted.issubset(self._manage_available.get(key, set())):
+                        raise ValueError("invalid ID")
+                    proposed[key] = build_selected_records(prefix, self._raw_records(key), submitted, self._manage_name_maps.get(key, {}))
+                    diffs[key] = diff_record_sets(self._raw_records(key), proposed[key])
             except (TypeError, ValueError):
                 errors["base"] = "invalid_selection"
-
             if not errors:
-                has_removals = any(diff["removed"] for diff in diffs.values())
-                if has_removals:
+                if any(diff["removed"] for diff in diffs.values()):
                     self._pending_options = proposed
                     self._pending_diff = diffs
                     return await self.async_step_confirm_entity_changes()
-
                 self._save_options(proposed)
                 return self.async_create_entry(title="", data=self.options)
-
         self._manage_available = {}
         schema = {}
         for key, prefix, *_ in RECORD_SPECS:
             current_ids = sorted(selected_ids(self._raw_records(key)))
-            schema[
-                vol.Optional(key, default=[str(value) for value in current_ids])
-            ] = self._selector_for_records(key, prefix)
-
-        return self.async_show_form(
-            step_id="manage_select",
-            data_schema=vol.Schema(schema),
-            errors={} if user_input is None else errors,
-            description_placeholders={"source": self._manage_source},
-        )
+            schema[vol.Optional(key, default=[str(value) for value in current_ids])] = self._selector_for_records(key, prefix)
+        return self.async_show_form(step_id="manage_select", data_schema=vol.Schema(schema), errors={} if user_input is None else errors, description_placeholders={"source": self._manage_source})
 
     async def async_step_manual_add(self, user_input=None):
-        """Manually add one record by type and database ID."""
         errors = {}
         if user_input is not None:
             key = user_input["record_type"]
             record_id = int(user_input["record_id"])
             custom_name = str(user_input.get("name", "")).strip() or None
-
             if record_id < 0:
                 errors["base"] = "invalid_selection"
             else:
@@ -378,37 +235,13 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                 if str(record_id) in records:
                     errors["base"] = "id_exists"
                 else:
-                    records[str(record_id)] = {
-                        "programmed_name": None,
-                        "custom_name": custom_name,
-                    }
+                    records[str(record_id)] = {"programmed_name": None, "custom_name": custom_name}
                     proposed = dict(self.options)
                     proposed[key] = records
                     self._save_options(proposed)
                     return self.async_create_entry(title="", data=self.options)
-
-        type_selector = selector.SelectSelector(
-            selector.SelectSelectorConfig(
-                options=[
-                    {"value": CONF_DOORS, "label": "Door"},
-                    {"value": CONF_AREAS, "label": "Area"},
-                    {"value": CONF_INPUTS, "label": "Input"},
-                    {"value": CONF_OUTPUTS, "label": "Output"},
-                ],
-                mode=selector.SelectSelectorMode.DROPDOWN,
-            )
-        )
-        return self.async_show_form(
-            step_id="manual_add",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("record_type"): type_selector,
-                    vol.Required("record_id"): int,
-                    vol.Optional("name", default=""): str,
-                }
-            ),
-            errors=errors,
-        )
+        type_selector = selector.SelectSelector(selector.SelectSelectorConfig(options=[{"value": CONF_DOORS, "label": "Door"}, {"value": CONF_AREAS, "label": "Area"}, {"value": CONF_INPUTS, "label": "Input"}, {"value": CONF_OUTPUTS, "label": "Output"}], mode=selector.SelectSelectorMode.DROPDOWN))
+        return self.async_show_form(step_id="manual_add", data_schema=vol.Schema({vol.Required("record_type"): type_selector, vol.Required("record_id"): int, vol.Optional("name", default=""): str}), errors=errors)
 
     def _removal_summary(self):
         if not self._pending_diff:
@@ -418,14 +251,12 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             removed = sorted(self._pending_diff.get(key, {}).get("removed", set()))
             old = self._normalized_records(key)
             for record_id in removed:
-                name = effective_name(prefix, record_id, old.get(str(record_id)))
-                lines.append(f"{prefix} {record_id} — {name}")
+                lines.append(f"{prefix} {record_id} — {effective_name(prefix, record_id, old.get(str(record_id)))}")
         return "\n".join(lines)
 
     async def async_step_confirm_entity_changes(self, user_input=None):
         if self._pending_options is None:
             return await self.async_step_manage_select()
-
         if user_input is not None:
             if user_input.get("confirm"):
                 self._save_options(self._pending_options)
@@ -435,54 +266,22 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             self._pending_options = None
             self._pending_diff = None
             return await self.async_step_manage_select()
-
-        return self.async_show_form(
-            step_id="confirm_entity_changes",
-            data_schema=vol.Schema({vol.Required("confirm", default=False): bool}),
-            description_placeholders={"changes": self._removal_summary()},
-        )
+        return self.async_show_form(step_id="confirm_entity_changes", data_schema=vol.Schema({vol.Required("confirm", default=False): bool}), description_placeholders={"changes": self._removal_summary()})
 
     async def async_step_configure_arming(self, user_input=None):
         if user_input is not None:
             self.options.update(user_input)
             self._save_options()
             return self.async_create_entry(title="", data=self.options)
-
-        return self.async_show_form(
-            step_id="configure_arming",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_ENABLE_AWAY,
-                        default=self.options.get(CONF_ENABLE_AWAY, True),
-                    ): bool,
-                    vol.Required(
-                        CONF_ENABLE_STAY,
-                        default=self.options.get(CONF_ENABLE_STAY, True),
-                    ): bool,
-                    vol.Required(
-                        CONF_ENABLE_NIGHT,
-                        default=self.options.get(CONF_ENABLE_NIGHT, True),
-                    ): bool,
-                    vol.Optional(
-                        CONF_ENABLE_BYPASS,
-                        default=self.options.get(CONF_ENABLE_BYPASS, False),
-                    ): bool,
-                }
-            ),
-        )
+        return self.async_show_form(step_id="configure_arming", data_schema=vol.Schema({
+            vol.Required(CONF_ENABLE_AWAY, default=self.options.get(CONF_ENABLE_AWAY, True)): bool,
+            vol.Required(CONF_ENABLE_STAY, default=self.options.get(CONF_ENABLE_STAY, True)): bool,
+            vol.Required(CONF_ENABLE_NIGHT, default=self.options.get(CONF_ENABLE_NIGHT, True)): bool,
+            vol.Optional(CONF_ENABLE_BYPASS, default=self.options.get(CONF_ENABLE_BYPASS, False)): bool,
+        }))
 
     async def async_step_edit_device(self, user_input=None):
-        return self.async_show_menu(
-            step_id="edit_device",
-            menu_options=[
-                "edit_door",
-                "edit_area",
-                "edit_input",
-                "edit_output",
-                "manage_entities",
-            ],
-        )
+        return self.async_show_menu(step_id="edit_device", menu_options=["edit_door", "edit_area", "edit_input", "edit_output", "manage_entities"])
 
     async def _edit_select_step(self, user_input, storage_key, prefix, step_id):
         records = self._normalized_records(storage_key)
@@ -490,78 +289,37 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             self._edit_id = int(user_input["item"])
             self._edit_type = storage_key
             return await self.async_step_edit_confirm()
-
         if not records:
             return self.async_abort(reason="no_devices")
-
-        options = [
-            selector.SelectOptionDict(
-                value=str(record_id),
-                label=f"{record_id} — {effective_name(prefix, record_id, record)}",
-            )
-            for record_id, record in sorted(
-                ((int(key), value) for key, value in records.items()),
-                key=lambda item: item[0],
-            )
-        ]
-        return self.async_show_form(
-            step_id=step_id,
-            data_schema=vol.Schema(
-                {
-                    vol.Required("item"): selector.SelectSelector(
-                        selector.SelectSelectorConfig(
-                            options=options,
-                            mode=selector.SelectSelectorMode.DROPDOWN,
-                        )
-                    )
-                }
-            ),
-        )
+        options = [selector.SelectOptionDict(value=str(record_id), label=f"{record_id} — {effective_name(prefix, record_id, record)}") for record_id, record in sorted(((int(key), value) for key, value in records.items()), key=lambda item: item[0])]
+        return self.async_show_form(step_id=step_id, data_schema=vol.Schema({vol.Required("item"): selector.SelectSelector(selector.SelectSelectorConfig(options=options, mode=selector.SelectSelectorMode.DROPDOWN))}))
 
     async def async_step_edit_confirm(self, user_input=None):
         key = self._edit_type
         prefix = RECORD_PREFIXES[key]
         records = self._normalized_records(key)
         record = records.get(str(self._edit_id), {})
-
         if user_input is not None:
-            custom_name = str(user_input.get("name", "")).strip() or None
-            record["custom_name"] = custom_name
+            record["custom_name"] = str(user_input.get("name", "")).strip() or None
             records[str(self._edit_id)] = record
             self.options[key] = records
             self._save_options()
             return self.async_create_entry(title="", data=self.options)
-
         current_custom = record.get("custom_name") or ""
         programmed = record.get("programmed_name") or f"{prefix} {self._edit_id}"
-        return self.async_show_form(
-            step_id="edit_confirm",
-            data_schema=vol.Schema({vol.Optional("name", default=current_custom): str}),
-            description_placeholders={
-                "id": str(self._edit_id),
-                "programmed_name": programmed,
-            },
-        )
+        return self.async_show_form(step_id="edit_confirm", data_schema=vol.Schema({vol.Optional("name", default=current_custom): str}), description_placeholders={"id": str(self._edit_id), "programmed_name": programmed})
 
     async def async_step_edit_door(self, user_input=None):
-        return await self._edit_select_step(
-            user_input, CONF_DOORS, "Door", "edit_door"
-        )
+        return await self._edit_select_step(user_input, CONF_DOORS, "Door", "edit_door")
 
     async def async_step_edit_area(self, user_input=None):
-        return await self._edit_select_step(
-            user_input, CONF_AREAS, "Area", "edit_area"
-        )
+        return await self._edit_select_step(user_input, CONF_AREAS, "Area", "edit_area")
 
     async def async_step_edit_input(self, user_input=None):
-        return await self._edit_select_step(
-            user_input, CONF_INPUTS, "Input", "edit_input"
-        )
+        return await self._edit_select_step(user_input, CONF_INPUTS, "Input", "edit_input")
 
     async def async_step_edit_output(self, user_input=None):
-        return await self._edit_select_step(
-            user_input, CONF_OUTPUTS, "Output", "edit_output"
-        )
+        return await self._edit_select_step(user_input, CONF_OUTPUTS, "Output", "edit_output")
 
     async def async_step_raw_editor(self, user_input=None):
         errors = {}
@@ -571,28 +329,13 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                 if not isinstance(raw_data, dict):
                     raise ValueError("root must be a dictionary")
                 for key, prefix, *_ in RECORD_SPECS:
-                    section = raw_data.get(key, {})
-                    self.options[key] = normalize_records(section, prefix)
+                    self.options[key] = normalize_records(raw_data.get(key, {}), prefix)
                 self._save_options()
                 return self.async_create_entry(title="", data=self.options)
             except Exception:
                 errors["base"] = "yaml_error"
-
         current = {key: self._normalized_records(key) for key, *_ in RECORD_SPECS}
-        return self.async_show_form(
-            step_id="raw_editor",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        "config_yaml",
-                        default=yaml.dump(current, sort_keys=True, allow_unicode=True),
-                    ): selector.TextSelector(
-                        selector.TextSelectorConfig(multiline=True)
-                    )
-                }
-            ),
-            errors=errors,
-        )
+        return self.async_show_form(step_id="raw_editor", data_schema=vol.Schema({vol.Required("config_yaml", default=yaml.dump(current, sort_keys=True, allow_unicode=True)): selector.TextSelector(selector.TextSelectorConfig(multiline=True))}), errors=errors)
 
     async def async_step_configure_connection(self, user_input=None):
         if user_input is not None:
@@ -602,41 +345,37 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             new_pin = str(user_input.get(CONF_PASSWORD, "")).strip()
             if new_pin:
                 merged[CONF_PASSWORD] = new_pin
-            self.hass.config_entries.async_update_entry(
-                self._config_entry, data=merged
-            )
+            self.hass.config_entries.async_update_entry(self._config_entry, data=merged)
             self.data = merged
             return self.async_create_entry(title="", data=self.options)
-
-        return self.async_show_form(
-            step_id="configure_connection",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_HOST, default=self.data.get(CONF_HOST)): str,
-                    vol.Required(CONF_PORT, default=self.data.get(CONF_PORT)): int,
-                    vol.Optional(CONF_PASSWORD, default=""): selector.TextSelector(
-                        selector.TextSelectorConfig(
-                            type=selector.TextSelectorType.PASSWORD
-                        )
-                    ),
-                }
-            ),
-        )
+        return self.async_show_form(step_id="configure_connection", data_schema=vol.Schema({
+            vol.Required(CONF_HOST, default=self.data.get(CONF_HOST)): str,
+            vol.Required(CONF_PORT, default=self.data.get(CONF_PORT)): int,
+            vol.Optional(CONF_PASSWORD, default=""): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)),
+        }))
 
     async def async_step_configure_wx_names(self, user_input=None):
-        """Configure optional operator credentials used only as WX lookup fallback."""
+        """Configure or explicitly remove optional WX operator fallback credentials."""
         errors = {}
+        has_saved_credentials = bool(str(self.data.get(CONF_WX_USERNAME, "")).strip())
         if user_input is not None:
-            username = str(user_input.get(CONF_WX_USERNAME, "")).strip()
-            new_password = str(user_input.get(CONF_WX_PASSWORD, ""))
             merged = dict(self.data)
-
-            if not username:
+            if user_input.get("remove_wx_credentials", False):
                 merged.pop(CONF_WX_USERNAME, None)
                 merged.pop(CONF_WX_PASSWORD, None)
-                self.hass.config_entries.async_update_entry(
-                    self._config_entry, data=merged
-                )
+                self.hass.config_entries.async_update_entry(self._config_entry, data=merged)
+                self.data = merged
+                return self.async_create_entry(title="", data=self.options)
+
+            username = str(user_input.get(CONF_WX_USERNAME, "")).strip()
+            new_password = str(user_input.get(CONF_WX_PASSWORD, ""))
+            if not username:
+                # Treat a deliberately blank username as removal too. This keeps
+                # the old clear-and-submit behaviour while the explicit checkbox
+                # makes removal reliable in HA forms that omit empty fields.
+                merged.pop(CONF_WX_USERNAME, None)
+                merged.pop(CONF_WX_PASSWORD, None)
+                self.hass.config_entries.async_update_entry(self._config_entry, data=merged)
                 self.data = merged
                 return self.async_create_entry(title="", data=self.options)
 
@@ -646,40 +385,25 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             else:
                 try:
                     api = ProtegeWXAPI(merged[CONF_HOST], username, password)
-                    valid = await api.validate_operator()
-                    if not valid:
+                    if not await api.validate_operator():
                         raise RuntimeError("operator authentication failed")
                 except Exception as err:
-                    _LOGGER.warning(
-                        "Protege WX optional operator login failed: %s", err
-                    )
+                    _LOGGER.warning("Protege WX optional operator login failed: %s", err)
                     errors["base"] = "wx_auth"
                 else:
                     merged[CONF_WX_USERNAME] = username
                     merged[CONF_WX_PASSWORD] = password
-                    self.hass.config_entries.async_update_entry(
-                        self._config_entry, data=merged
-                    )
+                    self.hass.config_entries.async_update_entry(self._config_entry, data=merged)
                     self.data = merged
                     return self.async_create_entry(title="", data=self.options)
 
-        return self.async_show_form(
-            step_id="configure_wx_names",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_WX_USERNAME,
-                        default=self.data.get(CONF_WX_USERNAME, ""),
-                    ): str,
-                    vol.Optional(CONF_WX_PASSWORD, default=""): selector.TextSelector(
-                        selector.TextSelectorConfig(
-                            type=selector.TextSelectorType.PASSWORD
-                        )
-                    ),
-                }
-            ),
-            errors=errors,
-        )
+        schema = {
+            vol.Optional(CONF_WX_USERNAME, default=self.data.get(CONF_WX_USERNAME, "")): str,
+            vol.Optional(CONF_WX_PASSWORD, default=""): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)),
+        }
+        if has_saved_credentials:
+            schema[vol.Optional("remove_wx_credentials", default=False)] = bool
+        return self.async_show_form(step_id="configure_wx_names", data_schema=vol.Schema(schema), errors=errors)
 
     async def async_step_back(self, user_input=None):
         return await self.async_step_init()
