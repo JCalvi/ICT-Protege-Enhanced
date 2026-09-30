@@ -26,21 +26,34 @@
       "init": {
         "title": "ICT Setup Menu",
         "menu_options": {
-          "scan_devices": "Scan for Devices",
+          "manage_entities": "Manage Protege Entities",
+          "scan_devices": "Discover / Rescan Devices",
+          "edit_device": "Rename Entity",
           "configure_arming": "Configure Arming Modes",
           "configure_connection": "Edit Automation Service Connection",
           "configure_wx_names": "Configure WX Name Lookup",
-          "add_door": "Add Door",
-          "add_area": "Add Area",
-          "add_input": "Add Input",
-          "add_output": "Add Output",
-          "edit_device": "Edit Device Name",
-          "remove_device": "Remove Device",
           "raw_editor": "Advanced: Edit YAML Config"
         }
       },
+      "manage_entities": {
+        "title": "Manage Protege Entities",
+        "description": "Select exactly which Protege records Home Assistant should expose. Existing records are preselected. Select a record to add it; clear it to remove it. Source: {source}.",
+        "data": {
+          "doors": "Doors",
+          "areas": "Areas",
+          "inputs": "Inputs",
+          "outputs": "Outputs"
+        }
+      },
+      "confirm_entity_changes": {
+        "title": "Confirm Entity Removal",
+        "description": "The following Protege records will be removed from Home Assistant only; nothing is deleted from the Protege controller:\n\n{changes}",
+        "data": {
+          "confirm": "Confirm these removals"
+        }
+      },
       "scan_devices": {
-        "title": "Select Scan Type",
+        "title": "Discover / Rescan Devices",
         "menu_options": {
           "scan_all": "Scan All Types",
           "scan_doors": "Scan Doors Only",
@@ -48,6 +61,70 @@
           "scan_inputs": "Scan Inputs Only",
           "scan_outputs": "Scan Outputs Only",
           "back": "Back to Main Menu"
+        }
+      },
+      "scan_all": {
+        "title": "Scan All Devices",
+        "description": "Discover database IDs starting at ID 0. With WX Name Lookup configured, programmed names and sparse IDs are handled automatically.",
+        "data": {
+          "limit_doors": "Highest Door ID to Scan",
+          "limit_areas": "Highest Area ID to Scan",
+          "limit_inputs": "Highest Input ID to Scan",
+          "limit_outputs": "Highest Output ID to Scan"
+        }
+      },
+      "scan_doors": {
+        "title": "Scan Doors",
+        "description": "Discover doors from database ID 0 up to the selected maximum.",
+        "data": { "limit": "Highest Door ID" }
+      },
+      "scan_areas": {
+        "title": "Scan Areas",
+        "description": "Discover areas from database ID 0 up to the selected maximum.",
+        "data": { "limit": "Highest Area ID" }
+      },
+      "scan_inputs": {
+        "title": "Scan Inputs",
+        "description": "Discover inputs from database ID 0 up to the selected maximum.",
+        "data": { "limit": "Highest Input ID" }
+      },
+      "scan_outputs": {
+        "title": "Scan Outputs",
+        "description": "Discover outputs from database ID 0 up to the selected maximum.",
+        "data": { "limit": "Highest Output ID" }
+      },
+      "edit_device": {
+        "title": "Rename Entity",
+        "description": "Choose the Protege record type to rename.",
+        "menu_options": {
+          "edit_door": "Rename Door",
+          "edit_area": "Rename Area",
+          "edit_input": "Rename Input",
+          "edit_output": "Rename Output",
+          "back": "Back to Main Menu"
+        }
+      },
+      "edit_door": {
+        "title": "Rename Door",
+        "data": { "item": "Door" }
+      },
+      "edit_area": {
+        "title": "Rename Area",
+        "data": { "item": "Area" }
+      },
+      "edit_input": {
+        "title": "Rename Input",
+        "data": { "item": "Input" }
+      },
+      "edit_output": {
+        "title": "Rename Output",
+        "data": { "item": "Output" }
+      },
+      "edit_confirm": {
+        "title": "Rename Entity",
+        "description": "Set an optional Home Assistant name for record ID {id}. Leave blank to use the Protege programmed name: {programmed_name}.",
+        "data": {
+          "name": "Custom Home Assistant Name"
         }
       },
       "configure_arming": {
@@ -58,79 +135,6 @@
           "enable_arm_stay": "Show 'Arm Stay' (Home)",
           "enable_arm_night": "Show 'Arm Night' (Sleep)",
           "enable_arm_bypass": "Show 'Force Arm' (Vacation)"
-        }
-      },
-      "add_door": {
-        "title": "Add Door",
-        "description": "Enter the ID from the 'Reporting ID' or 'Record' column in Protege.",
-        "data": {
-          "dev_id": "Door ID",
-          "name": "Door Name",
-          "next_action": "Next Action"
-        }
-      },
-      "add_area": {
-        "title": "Add Area",
-        "description": "Enter the ID from the 'Reporting ID' or 'Record' column in Protege.",
-        "data": {
-          "dev_id": "Area ID",
-          "name": "Area Name",
-          "next_action": "Next Action"
-        }
-      },
-      "add_input": {
-        "title": "Add Input",
-        "description": "Enter the ID from the 'Reporting ID' or 'Record' column in Protege.",
-        "data": {
-          "dev_id": "Input ID",
-          "name": "Input Name",
-          "next_action": "Next Action"
-        }
-      },
-      "add_output": {
-        "title": "Add Output",
-        "description": "Enter the ID from the 'Reporting ID' or 'Record' column in Protege.",
-        "data": {
-          "dev_id": "Output ID",
-          "name": "Output Name",
-          "next_action": "Next Action"
-        }
-      },
-      "scan_all": {
-        "title": "Scan All Devices",
-        "description": "Scan database record IDs starting at ID 0. If WX name lookup is configured, programmed names are retrieved automatically.",
-        "data": {
-          "limit_areas": "Highest Area ID to Scan",
-          "limit_doors": "Highest Door ID to Scan",
-          "limit_inputs": "Highest Input ID to Scan",
-          "limit_outputs": "Highest Output ID to Scan"
-        }
-      },
-      "remove_device": {
-        "title": "Remove Devices",
-        "menu_options": {
-          "remove_door": "Remove Door",
-          "remove_area": "Remove Area",
-          "remove_input": "Remove Input",
-          "remove_output": "Remove Output",
-          "back": "Back to Main Menu"
-        }
-      },
-      "edit_device": {
-        "title": "Edit Device Name",
-        "menu_options": {
-          "edit_door": "Edit Door",
-          "edit_area": "Edit Area",
-          "edit_input": "Edit Input",
-          "edit_output": "Edit Output",
-          "back": "Back to Main Menu"
-        }
-      },
-      "edit_confirm": {
-        "title": "Rename Device",
-        "description": "Enter the new name for device ID {id}.",
-        "data": {
-          "name": "New Name"
         }
       },
       "configure_connection": {
@@ -144,54 +148,27 @@
       },
       "configure_wx_names": {
         "title": "Protege WX Name Lookup",
-        "description": "Optional. Enter the Protege WX web operator credentials used only for read-only programmed-name lookup during scans. Leave the password blank to keep the saved password. Clear the username to disable WX name lookup.",
+        "description": "Optional. These WX web operator credentials are used only for read-only programmed-name lookup. Leave the password blank to keep the saved password. Clear the username to disable WX name lookup.",
         "data": {
           "wx_username": "WX Web Operator Username",
           "wx_password": "WX Web Operator Password"
         }
       },
-      "scan_doors": {
-        "title": "Scan Doors",
-        "description": "Scans from database ID 0 up to the selected maximum. With WX name lookup configured, actual programmed door names are used.",
-        "data": { "limit": "Highest Door ID" }
-      },
-      "scan_areas": {
-        "title": "Scan Areas",
-        "description": "Scans from database ID 0 up to the selected maximum. With WX name lookup configured, actual programmed area names are used.",
-        "data": { "limit": "Highest Area ID" }
-      },
-      "scan_inputs": {
-        "title": "Scan Inputs",
-        "description": "Scans from database ID 0 up to the selected maximum. With WX name lookup configured, actual programmed input names are used.",
-        "data": { "limit": "Highest Input ID" }
-      },
-      "scan_outputs": {
-        "title": "Scan Outputs",
-        "description": "Scans from database ID 0 up to the selected maximum. With WX name lookup configured, actual programmed output names are used.",
-        "data": { "limit": "Highest Output ID" }
-      },
       "raw_editor": {
         "title": "Edit Config YAML",
-        "description": "Manually edit the configuration dictionary.",
+        "description": "Advanced editor for the selected Protege record dictionaries.",
         "data": { "config_yaml": "Configuration YAML" }
       }
     },
     "error": {
-      "id_exists": "A device with this ID already exists.",
       "cannot_connect": "Could not connect to controller.",
       "invalid_auth": "Service PIN rejected.",
-      "wx_auth": "Protege WX web login failed. Check the WX operator username/password."
+      "wx_auth": "Protege WX web login failed. Check the WX operator username/password.",
+      "invalid_selection": "The submitted selection contained an invalid or unavailable record ID.",
+      "yaml_error": "The YAML configuration is invalid."
     },
     "abort": {
       "no_devices": "No devices of this type have been configured yet."
-    }
-  },
-  "selector": {
-    "next_action": {
-      "options": {
-        "add_more": "Save & Add Another",
-        "finish": "Save & Finish"
-      }
     }
   }
 }
