@@ -35,8 +35,21 @@ class ProtegeWXAPI:
         )
 
     async def _request(self, parameters: str) -> str:
-        url = f"https://{self.host}/PRT_CTRL_DIN_ISAPI.dll?{parameters}"
-        async with self._session.get(url, ssl=False) as response:
+        """Send one WX DLL API request while preserving the session cookie.
+
+        ICT's current API example sends the parameter string in the POST body.
+        Older controllers/documentation also show query-string GET requests, so
+        retain GET as a compatibility fallback if POST is not supported.
+        """
+        url = f"https://{self.host}/PRT_CTRL_DIN_ISAPI.dll"
+
+        async with self._session.post(url, data=parameters, ssl=False) as response:
+            if response.status == 200:
+                return (await response.text()).strip()
+            if response.status not in (404, 405, 501):
+                raise RuntimeError(f"WX API returned HTTP {response.status}")
+
+        async with self._session.get(f"{url}?{parameters}", ssl=False) as response:
             if response.status != 200:
                 raise RuntimeError(f"WX API returned HTTP {response.status}")
             return (await response.text()).strip()
@@ -48,7 +61,10 @@ class ProtegeWXAPI:
         try:
             first_random = int(first_random_text)
         except ValueError:
-            _LOGGER.debug("WX API InitSession returned unexpected data: %s", first_random_text)
+            _LOGGER.warning(
+                "WX API InitSession returned unexpected data: %s",
+                first_random_text[:120],
+            )
             return False
 
         password_hash = hashlib.sha1(self.password.encode("utf-8")).hexdigest().lower()
@@ -63,7 +79,10 @@ class ProtegeWXAPI:
             "Command&Type=Session&SubType=CheckPasswordServer"
             f"&Name={hash_xor_username}&Password={hash_xor_password}"
         )
-        return not result.upper().startswith("FAIL")
+        if result.upper().startswith("FAIL"):
+            _LOGGER.warning("WX API operator authentication rejected: %s", result[:120])
+            return False
+        return True
 
     async def _logout(self) -> None:
         try:
