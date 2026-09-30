@@ -10,7 +10,7 @@ A custom Home Assistant integration for **ICT Protege WX** and **Protege GX** sy
 
 The integration connects directly to the ICT controller's **Automation and Control** service, normally on **TCP port 21000**, for real-time status and control of Doors, Areas, Inputs and Outputs.
 
-On **Protege WX**, the integration can also use a separate **WX web operator account** to read the controller database over HTTPS. This second login is what allows Home Assistant to obtain the actual programmed record names and the complete record lists used by the entity manager.
+On **Protege WX**, the integration also uses the controller's local HTTPS database list endpoints to discover the actual programmed record names and complete Door/Area/Input/Output lists. These read-only list URLs are tried **anonymously first**. Many WX controllers expose them without a web-operator login. Optional WX operator credentials are only used as a fallback on controllers that protect those list endpoints.
 
 ## Features
 
@@ -39,9 +39,11 @@ On **Protege WX**, the integration can also use a separate **WX web operator acc
   * Clearing a selected record removes it from Home Assistant after confirmation.
   * Manual addition remains available when discovery cannot find a record.
 * **🔎 Protege WX database discovery**
-  * With WX web operator credentials configured, Home Assistant reads the controller's actual programmed record lists and names.
-  * Sparse database IDs are handled correctly because discovery comes from the WX database rather than sequential status probing.
-  * Without WX database access, the integration can fall back to Automation Service probing, but that fallback is intentionally best-effort and should not be treated as an authoritative inventory of a WX controller.
+  * Tries the local read-only WX database list URLs anonymously first.
+  * Uses optional WX web-operator credentials only if anonymous list access is unavailable.
+  * Retrieves actual programmed names such as `Front Entry` instead of `Door 0`.
+  * Handles sparse database IDs correctly because discovery comes from the WX database rather than sequential status probing.
+  * Falls back to Automation Service probing only if both WX database methods are unavailable.
 
 See [CHANGELOG.md](CHANGELOG.md) for version history.
 
@@ -76,33 +78,55 @@ After creating the service, verify that it is running under **Monitoring → Ser
 
 ---
 
-## 🔐 Two Separate Credentials
+## 🔐 Authentication and Discovery
 
-Protege WX users should understand that this integration can use **two completely separate authentication paths**.
+There are two separate paths and they serve different purposes.
 
-| Credential | Used for | Required? |
+| Credential / path | Used for | Required? |
 | :--- | :--- | :--- |
-| **Automation Service PIN** | Door/area/output control over TCP port 21000. Status requests use the Automation and Control service as well. | Required for normal integration setup and authenticated control commands. |
-| **Protege WX Web Operator username/password** | Read-only HTTPS database lookup for programmed names and complete Door/Area/Input/Output record lists. | Strongly recommended on WX. Required if you want reliable WX database enumeration and actual programmed names. |
+| **Automation Service PIN** | Authenticated door/area/output control over TCP port 21000. Status monitoring also uses the Automation and Control service. | Required for normal integration setup and authenticated control commands. |
+| **Protege WX read-only list URLs** | Complete WX database record lists and programmed names over HTTPS. | Tried automatically and anonymously first. No operator login is required if the controller permits anonymous list access. |
+| **Protege WX Web Operator username/password** | Fallback authentication for the same read-only WX database/name lookup when anonymous list access is blocked. | Optional. Only needed on controllers that require login for the list URLs. |
 
-The **Service PIN is not the WX web password**, and the WX web operator account is not used to unlock doors, arm areas or switch outputs.
+The **Service PIN is not the WX web password**, and the WX operator account is never used to unlock doors, arm areas or switch outputs.
 
-### Why the WX operator account matters
+### WX discovery order
 
-The Automation and Control protocol is excellent for live status and control, but it is not a reliable database-enumeration interface. A fallback scan can probe record IDs and ask whether something responds, but it may miss sparse records and should not be considered a complete inventory of a WX database.
+On Protege WX, **Search / Refresh Controller** uses this order:
 
-The WX web operator login lets the integration query the controller's local read-only database list endpoints instead. That gives Home Assistant:
+```text
+1. Anonymous HTTPS WX database list lookup
+        ↓ if unavailable
+2. Optional saved WX web operator login
+        ↓ if unavailable
+3. Automation Service status probing fallback
+```
 
-* the actual programmed names, such as `Front Entry` instead of `Door 0`;
-* the complete set of programmed Doors, Areas, Inputs and Outputs;
-* correct handling of sparse IDs, for example Areas at IDs `0`, `16`, `17`, `18`, `19` and `20`;
-* a much better source list for **Manage Protege Entities**.
+The first two methods query the WX database itself and are therefore authoritative for record IDs and programmed names. The final Automation Service method is only a best-effort probe and can miss sparse records or report generic names.
 
-For a Protege WX installation, configuring this account is therefore the recommended setup. If you omit it, the integration still works for configured entities, but **Search / Refresh Controller** falls back to Automation Service probing and discovered counts/names may be incomplete or generic.
+For example, the WX database path can return:
 
-The WX credentials are only sent to the local controller's HTTPS interface and are used for database/name lookup. The integration closes the API session after retrieving the requested metadata.
+```text
+6 doors
+6 areas
+63 inputs
+41 outputs
+```
 
-Once a selected record's programmed name has been saved in the Home Assistant configuration, that saved name remains available even if WX lookup is temporarily unavailable. WX access is needed again when you want to refresh the database, discover changes or retrieve updated programmed names.
+with names such as:
+
+```text
+Front Entry
+Roller Pedestrian Door
+Site Area
+Smoke - Office Area
+```
+
+instead of generic labels like `Door 0` or `Input 17`.
+
+If your controller exposes the read-only list URLs anonymously, **you do not need to configure a WX operator account at all**. Operator credentials are only a fallback for installations where those URLs are protected.
+
+Once a selected record's programmed name has been saved in Home Assistant, that saved name remains available even if WX lookup is temporarily unavailable. A fresh WX lookup is needed only to discover database changes or refresh programmed names.
 
 ---
 
@@ -139,26 +163,34 @@ Once a selected record's programmed name has been saved in the Home Assistant co
 
 The Protege user associated with that PIN must have the appropriate access level/permissions for any doors, areas or outputs Home Assistant is expected to control.
 
-### Configure Protege WX Name Lookup
+No WX web-operator login is required during initial setup.
 
-For Protege WX, after creating the integration entry go to:
+### Optional Protege WX operator fallback
 
-**Settings → Devices & Services → ICT Protege Automation → Configure → Configure WX Name Lookup**
+First try **Manage Protege Entities → Search / Refresh Controller** with no WX operator credentials configured. If the source line reports:
 
-Enter a valid **Protege WX web operator username and password**.
+```text
+Source: WX database (anonymous read-only lookup) search complete (...)
+```
 
-This account must be able to log in to the controller's local WX web interface. It is used only for read-only database/name lookup; it does not replace the Automation Service PIN.
+then your controller provides the database lists anonymously and nothing else is required.
 
-When editing these settings later:
+If anonymous WX lookup is unavailable, you can configure fallback credentials at:
+
+**Settings → Devices & Services → ICT Protege Automation → Configure → Configure WX Operator Fallback**
+
+Enter a valid **Protege WX web operator username and password**. These credentials are used only when anonymous database lookup fails.
+
+When editing them later:
 
 * leave the password blank to keep the saved password;
-* clear the username to disable WX name lookup.
+* clear the username to remove the saved fallback login.
 
 ---
 
 ## 🧭 Manage Protege Entities
 
-Entity configuration is now centred on:
+Entity configuration is centred on:
 
 **Settings → Devices & Services → ICT Protege Automation → Configure → Manage Protege Entities**
 
@@ -171,7 +203,9 @@ The menu contains:
 
 ### Search / Refresh Controller
 
-On a Protege WX system with a working WX operator login, this reads the controller's WX database and retrieves the complete available record sets and programmed names for:
+On Protege WX this first tries the controller's read-only database list URLs anonymously. If they are protected, optional saved WX operator credentials are tried. Only if WX database lookup is unavailable does the integration fall back to Automation Service probing.
+
+The WX database path retrieves the complete available record sets and programmed names for:
 
 ```text
 Doors
@@ -182,13 +216,19 @@ Outputs / PGMs
 
 After the search, Home Assistant opens the selection screen. **Newly discovered records are not automatically enabled.**
 
-The source line tells you which discovery method was used, for example:
+The source line shows exactly which discovery method was used, for example:
 
 ```text
-Source: WX database search complete (6 doors, 6 areas, 63 inputs, 41 outputs).
+Source: WX database (anonymous read-only lookup) search complete (6 doors, 6 areas, 63 inputs, 41 outputs).
 ```
 
-If WX lookup is unavailable, the source line explicitly shows an Automation Service fallback instead.
+or, on a controller requiring login:
+
+```text
+Source: WX database (operator login) search complete (...).
+```
+
+If both WX database methods fail, the source line explicitly identifies the Automation Service fallback.
 
 ### Select / Remove Entities
 
@@ -261,7 +301,7 @@ Database ID `0` is valid and is commonly the first record.
 
 ### Protege WX read-only database API
 
-When WX Name Lookup is configured, the integration uses the controller's local HTTPS DLL API to retrieve record lists and names. The equivalent list can be viewed manually while authenticated to WX, for example:
+The integration uses the controller's local HTTPS DLL API to retrieve record lists and names. On controllers that permit anonymous access, these URLs work without logging into WX first. For example:
 
 ```text
 https://CONTROLLER/PRT_CTRL_DIN_ISAPI.dll?Request&Type=List&SubType=GXT_DOORS_TBL
@@ -276,7 +316,9 @@ GXT_INPUTS_TBL   Inputs / Sensors
 GXT_PGMS_TBL     Outputs / PGMs
 ```
 
-These `Request&Type=List` operations are used only for metadata discovery. Status monitoring and control continue to use the Automation and Control service.
+The integration attempts these read-only `Request&Type=List` URLs anonymously first. If the controller rejects anonymous access and optional operator credentials are configured, it authenticates to WX and repeats the lookup in that session.
+
+These operations are used only for metadata discovery. Status monitoring and control continue to use the Automation and Control service.
 
 ### Display-order mode
 
@@ -299,27 +341,37 @@ Otherwise use the actual Protege database record IDs.
 * Confirm the configured value is a valid Protege user PIN.
 * Confirm that user has an access level permitting the intended controls.
 
-**Protege WX web login failed**
+**Search shows `WX database (anonymous read-only lookup)`**
 
+This is the preferred result. Your controller exposes the read-only record-list URLs anonymously, so no WX operator account is required.
+
+**Search shows `WX database (operator login)`**
+
+Anonymous list access was unavailable, but the optional saved WX operator account succeeded. The resulting database inventory and names are still authoritative.
+
+**Search falls back to Automation Service**
+
+The integration could not obtain the WX database lists anonymously or with the optional saved operator credentials. The fallback scan can still discover records, but it is not an authoritative WX database inventory and may show generic names or incomplete counts.
+
+**Optional Protege WX operator login failed**
+
+* This does not necessarily stop WX discovery: anonymous database lookup may still work.
 * Confirm the username/password can log in to the controller's normal local Protege WX web interface.
 * Remember this is a **WX web operator account**, not the Automation Service PIN.
-* Re-enter it under **Configure → Configure WX Name Lookup**.
-* A blank password means "keep the saved password"; clear the username if you intentionally want to disable WX lookup.
-
-**Search says `Automation Service fallback (WX lookup not configured)`**
-
-No WX web operator credentials are currently saved. Configure **WX Name Lookup** if you want programmed names and authoritative WX database record lists.
-
-**Search says `Automation Service fallback (WX lookup unavailable)`**
-
-WX credentials are saved, but the HTTPS database lookup failed. Check the WX login and then run **Search / Refresh Controller** again.
+* Re-enter it under **Configure → Configure WX Operator Fallback** only if your controller actually requires authenticated list access.
 
 **Fallback search shows generic names or unexpected counts**
 
-The Automation Service fallback is only a best-effort status probe; it is not the authoritative WX database inventory. Configure a working WX operator login and repeat **Search / Refresh Controller**. The source line should then begin with:
+The Automation Service fallback is only a best-effort status probe. Check whether the anonymous WX list URL works directly in a browser, then repeat **Search / Refresh Controller**. A successful database lookup should produce a source line beginning with either:
 
 ```text
-Source: WX database search complete (...)
+Source: WX database (anonymous read-only lookup) ...
+```
+
+or:
+
+```text
+Source: WX database (operator login) ...
 ```
 
 **Contacts work but door control does not**
