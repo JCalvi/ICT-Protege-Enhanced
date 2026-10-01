@@ -4,22 +4,34 @@ All notable changes to this fork will be documented in this file.
 
 This project is forked from the original [`caboose014/ICT-Protege-Home-Assistant`](https://github.com/caboose014/ICT-Protege-Home-Assistant) integration by **caboose014**. Earlier history belongs to the upstream project; entries below document changes made in this fork.
 
-## 2.0.4 - 2026-09-30
-
-### Fixed
-- Restored the Protege WX read-only database-list behaviour that works without an operator login on controllers exposing the `Request&Type=List` URLs anonymously.
-- WX database discovery now tries anonymous HTTPS list requests first instead of refusing to attempt name lookup when no WX operator credentials are stored.
-- Optional WX operator credentials are now used only as a fallback when anonymous database-list access is unavailable.
-- Operator credential validation explicitly tests the operator login itself, so an anonymously accessible list endpoint cannot make invalid fallback credentials appear valid.
-- Search source text now reports whether the authoritative WX database was read anonymously or through an operator login.
+## 2.0.6 - 2026-10-01
 
 ### Changed
-- Renamed the configuration menu entry from **Configure WX Name Lookup** to **Configure WX Operator Fallback** to reflect that credentials are optional rather than inherently required for names.
-- Updated the README and options-flow help text to document the lookup order: anonymous WX database list → optional operator login → Automation Service fallback.
+- Protege WX programmed-name and database-list lookup now requires a configured WX web-operator login.
+- Removed the experimental unauthenticated WX database-list path and the related discovery-mode handling.
+- Search now uses authenticated WX database lookup when operator credentials are configured, then falls back to Automation Service probing if credentials are absent or the WX lookup fails.
+- Restored **Configure WX Name Lookup** wording in the options flow and documentation.
+- Retained the v2 entity manager, authoritative WX database handling, Automation Service fallback, programmed/custom-name separation, stable entity identity, and the later credential-edit/removal improvements.
+
+### Fixed
+- WX metadata lookup no longer attempts a database request before establishing an operator session.
+- Source text and troubleshooting guidance now match the actual authenticated lookup behaviour.
+
+## 2.0.5 - 2026-09-30
+
+### Fixed
+- Editing Automation Service settings with a blank Service PIN preserves the existing PIN.
+- WX operator credentials can be removed explicitly from the options flow.
+- Leaving the WX password blank while editing an existing operator keeps the saved password.
+
+## 2.0.4 - 2026-09-30
+
+### Changed
+- Continued refinement of Protege WX database discovery and source reporting during v2 testing.
+- The WX database list remained the authoritative source for complete Door, Area, Input and Output record IDs and programmed names, with Automation Service probing retained as a fallback.
 
 ### Notes
-- The WX database list remains the authoritative source for complete Door, Area, Input and Output record IDs and programmed names.
-- The Automation Service scanner remains a best-effort fallback for GX systems or when the WX database endpoints are unavailable.
+- The WX discovery behaviour from this test release was superseded by the authenticated operator-session model in v2.0.6.
 
 ## 2.0.3 - 2026-09-30
 
