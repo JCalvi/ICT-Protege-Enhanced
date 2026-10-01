@@ -29,7 +29,7 @@
           "manage_entities": "Manage Protege Entities",
           "configure_arming": "Configure Arming Modes",
           "configure_connection": "Edit Automation Service Connection",
-          "configure_wx_names": "Configure WX Operator Fallback",
+          "configure_wx_names": "Configure WX Name Lookup",
           "raw_editor": "Advanced: Edit YAML Config"
         }
       },
@@ -46,7 +46,7 @@
       },
       "manage_search": {
         "title": "Search / Refresh Controller",
-        "description": "On Protege WX, the integration first tries the read-only database list URLs anonymously. If the controller blocks anonymous list access, optional WX operator credentials are tried next. Automation Service probing is the final fallback. Searching does not enable newly discovered records; you choose them on the next screen.",
+        "description": "On Protege WX, configured WX web-operator credentials are used to retrieve the authoritative database record lists and programmed names. If WX credentials are not configured or the lookup fails, Automation Service probing is used as a fallback. Searching does not enable newly discovered records; you choose them on the next screen.",
         "data": {
           "limit_doors": "Highest Door ID to Scan (Automation fallback only)",
           "limit_areas": "Highest Area ID to Scan (Automation fallback only)",
@@ -57,61 +57,109 @@
       "manage_select": {
         "title": "Select Protege Entities",
         "description": "Existing records are preselected. Select a record to add it; clear it to remove it. Source: {source}.",
-        "data": {"doors": "Doors", "areas": "Areas", "inputs": "Inputs", "outputs": "Outputs"}
+        "data": {
+          "doors": "Doors",
+          "areas": "Areas",
+          "inputs": "Inputs",
+          "outputs": "Outputs"
+        }
       },
       "manual_add": {
         "title": "Manually Add Protege Entity",
         "description": "Use this when controller discovery does not expose the required record. The database ID is the stable identity. The custom name is optional and can be changed later.",
-        "data": {"record_type": "Record Type", "record_id": "Database ID", "name": "Optional Custom Name"}
+        "data": {
+          "record_type": "Record Type",
+          "record_id": "Database ID",
+          "name": "Optional Custom Name"
+        }
       },
       "confirm_entity_changes": {
         "title": "Confirm Entity Removal",
         "description": "The following Protege records will be removed from Home Assistant only; nothing is deleted from the Protege controller:\n\n{changes}",
-        "data": {"confirm": "Confirm these removals"}
+        "data": {
+          "confirm": "Confirm these removals"
+        }
       },
       "edit_device": {
         "title": "Rename Entity",
         "description": "Choose the Protege record type to rename.",
-        "menu_options": {"edit_door": "Rename Door", "edit_area": "Rename Area", "edit_input": "Rename Input", "edit_output": "Rename Output", "manage_entities": "Back to Manage Protege Entities"}
+        "menu_options": {
+          "edit_door": "Rename Door",
+          "edit_area": "Rename Area",
+          "edit_input": "Rename Input",
+          "edit_output": "Rename Output",
+          "manage_entities": "Back to Manage Protege Entities"
+        }
       },
-      "edit_door": {"title": "Rename Door", "data": {"item": "Door"}},
-      "edit_area": {"title": "Rename Area", "data": {"item": "Area"}},
-      "edit_input": {"title": "Rename Input", "data": {"item": "Input"}},
-      "edit_output": {"title": "Rename Output", "data": {"item": "Output"}},
+      "edit_door": {
+        "title": "Rename Door",
+        "data": {"item": "Door"}
+      },
+      "edit_area": {
+        "title": "Rename Area",
+        "data": {"item": "Area"}
+      },
+      "edit_input": {
+        "title": "Rename Input",
+        "data": {"item": "Input"}
+      },
+      "edit_output": {
+        "title": "Rename Output",
+        "data": {"item": "Output"}
+      },
       "edit_confirm": {
         "title": "Rename Entity",
         "description": "Set an optional Home Assistant name for record ID {id}. Leave blank to use the Protege programmed name: {programmed_name}.",
-        "data": {"name": "Custom Home Assistant Name"}
+        "data": {
+          "name": "Custom Home Assistant Name"
+        }
       },
       "configure_arming": {
         "title": "Arming Panel Options",
         "description": "Select which arming modes should be visible on the Alarm Panel card.",
-        "data": {"enable_arm_away": "Show 'Arm Away'", "enable_arm_stay": "Show 'Arm Stay' (Home)", "enable_arm_night": "Show 'Arm Night' (Sleep)", "enable_arm_bypass": "Show 'Force Arm' (Vacation)"}
+        "data": {
+          "enable_arm_away": "Show 'Arm Away'",
+          "enable_arm_stay": "Show 'Arm Stay' (Home)",
+          "enable_arm_night": "Show 'Arm Night' (Sleep)",
+          "enable_arm_bypass": "Show 'Force Arm' (Vacation)"
+        }
       },
       "configure_connection": {
         "title": "Automation Service Connection",
         "description": "Edit the TCP Automation and Control connection. Leave Service PIN blank to keep the existing PIN.",
-        "data": {"host": "IP Address", "port": "Port", "password": "New Service PIN (leave blank to keep current)"}
+        "data": {
+          "host": "IP Address",
+          "port": "Port",
+          "password": "New Service PIN (leave blank to keep current)"
+        }
       },
       "configure_wx_names": {
-        "title": "Protege WX Operator Fallback",
-        "description": "Optional fallback only. Protege WX database/name lookup is tried anonymously first. Enter a WX web operator account only if anonymous read-only list access is blocked. To delete a saved fallback login, tick Remove saved WX operator credentials and Submit.",
+        "title": "Protege WX Name Lookup",
+        "description": "Enter a Protege WX web-operator username and password to retrieve the controller's programmed record names and complete WX database lists. These credentials are used only for read-only metadata lookup; monitoring and control continue to use the Automation Service. Leave the password blank to keep the saved password. To remove saved credentials, tick Remove saved WX operator credentials and Submit.",
         "data": {
-          "wx_username": "Optional WX Web Operator Username",
-          "wx_password": "Optional WX Web Operator Password",
+          "wx_username": "WX Web Operator Username",
+          "wx_password": "WX Web Operator Password",
           "remove_wx_credentials": "Remove saved WX operator credentials"
         }
       },
-      "raw_editor": {"title": "Edit Config YAML", "description": "Advanced editor for the selected Protege record dictionaries.", "data": {"config_yaml": "Configuration YAML"}}
+      "raw_editor": {
+        "title": "Edit Config YAML",
+        "description": "Advanced editor for the selected Protege record dictionaries.",
+        "data": {
+          "config_yaml": "Configuration YAML"
+        }
+      }
     },
     "error": {
       "id_exists": "A record of this type with that database ID is already configured.",
       "cannot_connect": "Could not connect to controller.",
       "invalid_auth": "Service PIN rejected.",
-      "wx_auth": "Protege WX operator login failed. These optional fallback credentials were not saved; anonymous WX database lookup may still work.",
+      "wx_auth": "Protege WX operator login failed. The credentials were not saved.",
       "invalid_selection": "The submitted selection contained an invalid or unavailable record ID.",
       "yaml_error": "The YAML configuration is invalid."
     },
-    "abort": {"no_devices": "No devices of this type have been configured yet."}
+    "abort": {
+      "no_devices": "No devices of this type have been configured yet."
+    }
   }
 }
