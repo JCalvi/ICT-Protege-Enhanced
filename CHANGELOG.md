@@ -4,6 +4,24 @@ All notable changes to this fork will be documented in this file.
 
 This project is forked from the original [`caboose014/ICT-Protege-Home-Assistant`](https://github.com/caboose014/ICT-Protege-Home-Assistant) integration by **caboose014**. Earlier history belongs to the upstream project; entries below document changes made in this fork.
 
+## 3.5.0 - 2026-10-03
+
+### Changed
+- Restored the v3.0-style scan interaction so choosing Doors, Areas, Inputs or Outputs opens the native Home Assistant searchable list immediately instead of first showing the intermediate config-flow form.
+- Added a small integration frontend helper that only activates on the ICT Protege Enhanced `scan_select` options-flow step.
+- Added **Add all visible** to the open picker. It reads Home Assistant's current live filtered result set, so typing `PIR` and then pressing **Add all visible** adds only the PIR records still shown.
+- With no search text, **Add all visible** adds every currently visible/unconfigured record of that type.
+- Added **Back** inside the open picker to return to **Controller Scan Results** without adding anything.
+- Scan additions continue to save immediately and return to the cached scan-results menu, so Doors, Areas, Inputs and Outputs can all be handled from one scan.
+
+### Notes
+- The bulk action operates on the picker frontend's actual filtered `_items` list, rather than trying to reproduce the search on the Python backend.
+- The older backend **select all** / **select none** controls remain for compatibility but are hidden by the scan picker helper during this workflow.
+- No device-name or entity-ID migration is included in 3.5.0.
+
+### Documentation
+- Updated the README for the direct-open searchable picker and filtered **Add all visible** behaviour.
+
 ## 3.4.0 - 2026-10-03
 
 ### Changed
