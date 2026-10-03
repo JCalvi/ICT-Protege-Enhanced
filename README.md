@@ -33,8 +33,9 @@ On **Protege WX**, optional WX web-operator credentials can also be configured. 
   * Turn PGMs and other outputs On/Off.
 * **🧭 Manage Protege Entities**
   * **Search / Refresh Controller** performs one discovery pass and opens a reusable **Controller Scan Results** menu.
-  * Choose Doors, Areas, Inputs or Outputs and immediately open the native searchable multi-select list.
-  * The picker initially contains every unconfigured record of that type; typing text such as `PIR` filters the visible picker list live.
+  * Choosing Doors, Areas, Inputs or Outputs opens the native Home Assistant searchable result list automatically.
+  * The picker initially contains every unconfigured record of that type; typing text such as `PIR` filters the visible list live.
+  * **Add all visible** adds only the records remaining in the current filtered list. For example, after typing `PIR`, only the visible PIR records are added.
   * Each successful add is saved immediately and returns to **Controller Scan Results**, so another record type can be handled without rescanning.
   * **Return to Last Scan Results** lets you revisit the cached scan while the same configuration session remains open.
   * **Select / Remove Entities** remains available as the maintenance/removal screen.
@@ -228,15 +229,15 @@ Back to Manage Protege Entities
 
 ### Searchable multi-add from scan results
 
-Choosing a record type goes directly to the add screen. There is no separate pre-filter step.
+Choosing a record type now opens the native Home Assistant searchable list **directly**. There is no separate filter page and no need to press a separate **Records to add** button first.
 
-For example, choosing **Inputs** gives one native Home Assistant multi-select picker containing every currently unconfigured input from the cached scan. Open **Records to add** and you immediately see the whole list. The picker has its own search box, so typing:
+For example, choosing **Inputs** immediately shows every currently unconfigured input from the cached scan. The search field at the top filters the visible list live, so typing:
 
 ```text
 PIR
 ```
 
-filters the visible list live to entries such as:
+narrows the list to entries such as:
 
 ```text
 21 — PIR Reception
@@ -246,12 +247,17 @@ filters the visible list live to entries such as:
 ...
 ```
 
-Select as many records as required and submit once. The selected records are **saved immediately** and Home Assistant returns to **Controller Scan Results**, allowing you to go straight into Doors, Areas, Inputs or Outputs again without rescanning. There is no separate final-save step for this workflow.
+At the bottom of the open picker, **Add all visible** adds exactly the records currently remaining in that list. Therefore:
 
-The page also provides:
+```text
+No filter  → Add all visible adds every unconfigured record of that type
+PIR        → Add all visible adds only the visible PIR records
+Reception  → Add all visible adds only records matching Reception
+```
 
-* **Add all available records (ignores search text)** — adds every currently unconfigured record of that type. Because the Home Assistant picker's live search text is frontend-only, this option cannot see or act on the current search filter.
-* **Back to scan results without adding** — returns to the scan-results menu without adding anything.
+The visible set comes from Home Assistant's own live picker filter, so the bulk action always follows what is actually shown on screen. After adding, the records are **saved immediately** and the flow returns to **Controller Scan Results**, where Doors, Areas, Inputs or Outputs can be opened again from the same cached scan.
+
+A **Back** button in the picker returns to **Controller Scan Results** without adding anything. Individual records can still be selected using the normal Home Assistant picker behaviour.
 
 Already configured records are excluded from the scan-add picker, so adding from scan results cannot remove existing entities. Use **Select / Remove Entities** for removals.
 
