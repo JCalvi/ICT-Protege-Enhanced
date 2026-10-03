@@ -118,6 +118,12 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         if new_options is not None:
             self.options = new_options
 
+    def _persist_options(self):
+        """Persist scan additions while keeping the options flow open."""
+        self.hass.config_entries.async_update_entry(
+            self._config_entry, options=dict(self.options)
+        )
+
     def _record_type_selector(self):
         return selector.SelectSelector(
             selector.SelectSelectorConfig(
@@ -296,7 +302,6 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                 "scan_areas",
                 "scan_inputs",
                 "scan_outputs",
-                "scan_finish",
                 "manage_entities",
             ],
             description_placeholders={
@@ -304,10 +309,6 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                 "counts": self._scan_counts(),
             },
         )
-
-    async def async_step_scan_finish(self, user_input=None):
-        """Save all additions staged during this scan session."""
-        return self.async_create_entry(title="", data=self.options)
 
     async def _start_scan_type(self, key):
         if not self._scan_complete:
@@ -395,8 +396,10 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                             self._manage_name_maps.get(self._scan_key, {}),
                         )
                         self._save_options(proposed)
-                        # Keep this options flow alive so another record type can
-                        # be added from the same cached scan before one final save.
+                        # Scan additions are deliberately saved immediately so
+                        # the user can return to the cached scan, add another
+                        # record type, or close the dialog without a final save.
+                        self._persist_options()
                         return await self.async_step_scan_results()
 
         searchable_selector = selector.SelectSelector(
