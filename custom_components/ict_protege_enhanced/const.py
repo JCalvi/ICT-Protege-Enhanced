@@ -1,4 +1,4 @@
-DOMAIN = "ict_automation"
+DOMAIN = "ict_protege_enhanced"
 
 CONF_HOST = "host"
 CONF_PORT = "port"

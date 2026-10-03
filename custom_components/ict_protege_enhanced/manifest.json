@@ -1,11 +1,11 @@
 {
-  "domain": "ict_automation",
-  "name": "ICT Protege Automation",
+  "domain": "ict_protege_enhanced",
+  "name": "ICT Protege Enhanced",
   "codeowners": [],
   "config_flow": true,
   "documentation": "https://www.ict.co",
   "iot_class": "local_push",
   "requirements": ["pyyaml"],
-  "version": "2.0.6",
+  "version": "3.0.0",
   "quality_scale": "silver"
 }
