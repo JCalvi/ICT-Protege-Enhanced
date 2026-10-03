@@ -4,6 +4,23 @@ All notable changes to this fork will be documented in this file.
 
 This project is forked from the original [`caboose014/ICT-Protege-Home-Assistant`](https://github.com/caboose014/ICT-Protege-Home-Assistant) integration by **caboose014**. Earlier history belongs to the upstream project; entries below document changes made in this fork.
 
+## 3.4.0 - 2026-10-03
+
+### Changed
+- Simplified the controller-scan workflow so it now follows the original discovery pattern: scan once, choose a group, see the complete result list immediately, use the native picker search box to filter it live, then select the required records.
+- Removed **Save Changes & Finish** and the scan-session staging concept.
+- Records added from a scan are now saved immediately when the add form is submitted, then the flow returns to **Controller Scan Results**.
+- The same cached scan can therefore be reused for Doors, Areas, Inputs and Outputs without rescanning and without a separate final-save action.
+- **Back to scan results without adding** returns one level to the cached group menu.
+- **Return to Last Scan Results** remains available from **Manage Protege Entities** while the current options-flow session is open.
+
+### Notes
+- The native Home Assistant multi-select picker shows all available records first and filters the visible list as text is entered in its own search box.
+- **Add all available records** still applies to every unconfigured record of that type, not only the records currently visible after a live picker search, because the frontend search text is not exposed to the integration backend.
+
+### Documentation
+- Updated the README and options-flow text to match the immediate-save reusable scan workflow.
+
 ## 3.3.0 - 2026-10-03
 
 ### Changed
@@ -176,7 +193,7 @@ This project is forked from the original [`caboose014/ICT-Protege-Home-Assistant
 ### Changed
 - Consolidated all Protege entities under a single Home Assistant device named **ICT Protege Controller**.
 - Doors, door contacts, areas, inputs, input troubles, input bypass controls and outputs now all belong to the same controller device.
-- Removed per-door, per-area, per-input and per-output Home Assistant device shells.
+- Removed per-door, per-area/per-input/per-output Home Assistant device shells.
 - Added automatic cleanup of legacy per-record device shells after entities migrate to the controller device.
 
 ### Notes
