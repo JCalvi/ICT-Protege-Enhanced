@@ -6,7 +6,7 @@ on:
     branches:
       - Release
     paths:
-      - custom_components/ict_automation/manifest.json
+      - custom_components/ict_protege_enhanced/manifest.json
       - .github/workflows/publish-release.yml
 
 permissions:
@@ -36,7 +36,7 @@ jobs:
 
           VERSION=$(python3 - <<'PY'
           import json
-          with open('custom_components/ict_automation/manifest.json', encoding='utf-8') as f:
+          with open('custom_components/ict_protege_enhanced/manifest.json', encoding='utf-8') as f:
               print(json.load(f)['version'])
           PY
           )
