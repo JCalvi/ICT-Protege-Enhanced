@@ -57,22 +57,21 @@
       },
       "scan_results": {
         "title": "Controller Scan Results",
-        "description": "Source: {source}\n\n{counts}\n\nChoose Doors, Areas, Inputs or Outputs. Additions are staged and you return here after each add, so several record types can be added from this one scan. Choose Save Changes & Finish when done.",
+        "description": "Source: {source}\n\n{counts}\n\nChoose Doors, Areas, Inputs or Outputs. Each successful add is saved immediately and returns here, so you can add several record types from this one cached scan without scanning again.",
         "menu_options": {
           "scan_doors": "Doors",
           "scan_areas": "Areas",
           "scan_inputs": "Inputs",
           "scan_outputs": "Outputs",
-          "scan_finish": "Save Changes & Finish",
           "manage_entities": "Back to Manage Protege Entities"
         }
       },
       "scan_select": {
         "title": "Add {record_type}s",
-        "description": "{count} unconfigured {record_type} records are available from the cached scan. Open Records to add to see the full list; type in the picker's search box to filter it live (for example PIR), then select as many records as required. Submit returns to Controller Scan Results so you can add another type. Select all adds every available record of this type and is not limited by the picker search text. Source: {source}.",
+        "description": "{count} unconfigured {record_type} records are available from the cached scan. Open Records to add to see the full list, then type in the picker's search box to filter it live (for example PIR). Select as many records as required and Submit to add them immediately. You will return to Controller Scan Results so you can choose another group without rescanning. Add all available records adds every unconfigured record of this type and is not limited by the live search text. Source: {source}.",
         "data": {
-          "select_all": "Select all available records (ignores search text)",
-          "select_none": "Select none / back to scan results",
+          "select_all": "Add all available records (ignores search text)",
+          "select_none": "Back to scan results without adding",
           "items": "Records to add"
         }
       },
@@ -186,8 +185,8 @@
       "invalid_auth": "Service PIN rejected.",
       "wx_auth": "Protege WX operator login failed. The credentials were not saved.",
       "invalid_selection": "The submitted selection contained an invalid or unavailable record ID.",
-      "no_selection": "Select at least one record, or choose Select all or Select none.",
-      "selection_conflict": "Select all and Select none cannot both be enabled.",
+      "no_selection": "Select at least one record, choose Add all, or go back without adding.",
+      "selection_conflict": "Add all and Back without adding cannot both be enabled.",
       "yaml_error": "The YAML configuration is invalid."
     },
     "abort": {
