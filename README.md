@@ -32,13 +32,11 @@ On **Protege WX**, optional WX web-operator credentials can also be configured. 
 * **💡 Outputs**
   * Turn PGMs and other outputs On/Off.
 * **🧭 Manage Protege Entities**
-  * One central menu for search, bulk addition, selection/removal, manual addition and renaming.
-  * **Bulk Add Entities** lets you choose one record type, optionally filter by name or ID, then tick multiple records and add them in one operation.
-  * Bulk Add supports **Select all matching records** and **Select none** controls.
-  * Four multi-select lists remain available for full Doors, Areas, Inputs and Outputs management.
-  * Existing configured records are preselected in the full selection/removal screen.
-  * Searching does **not** automatically enable every discovered record.
-  * Clearing a selected record removes it from Home Assistant after confirmation.
+  * **Search / Refresh Controller** performs one discovery pass and then opens a **Controller Scan Results** menu.
+  * From the scan results, choose Doors, Areas, Inputs or Outputs, optionally filter by name or database ID, then tick multiple records and add them in one operation.
+  * The checkbox page supports **Select all matching records** and **Select none**.
+  * Already configured records are excluded from the scan-add list, so the scan workflow is additive only.
+  * **Select / Remove Entities** remains available as the maintenance/removal screen.
   * Manual addition remains available when discovery cannot find a record.
 * **🔎 Protege WX programmed-name discovery**
   * Uses a configured Protege WX web operator to authenticate to the local WX database API.
@@ -92,7 +90,7 @@ The **Service PIN is not the WX web password**, and the WX operator account is n
 
 ### Discovery order
 
-On Protege WX, **Search / Refresh Controller** and **Bulk Add Entities** use this order:
+On Protege WX, **Search / Refresh Controller** uses this order:
 
 ```text
 1. Authenticated WX database list lookup using the saved WX web operator
@@ -187,7 +185,6 @@ Entity configuration is centred on:
 The menu contains:
 
 * **Search / Refresh Controller**
-* **Bulk Add Entities**
 * **Select / Remove Entities**
 * **Manually Add Entity**
 * **Rename Entity**
@@ -203,59 +200,20 @@ Inputs
 Outputs / PGMs
 ```
 
-After the search, Home Assistant opens the selection screen. **Newly discovered records are not automatically enabled.**
+If WX credentials are not configured, or the lookup fails, the integration uses Automation Service probing as the fallback.
 
-A successful authenticated WX lookup reports a source such as:
+After the scan finishes, Home Assistant opens **Controller Scan Results** rather than the old all-in-one selection screen. The scan result is cached for the rest of that options-flow session; choosing a record type does **not** scan the controller again.
 
-```text
-Source: WX database (operator login) search complete (6 doors, 6 areas, 63 inputs, 41 outputs).
-```
-
-If WX credentials are not configured, or the lookup fails, the source line identifies the Automation Service fallback instead.
-
-### Bulk Add Entities
-
-Use **Bulk Add Entities** when you want to add several records of one type without selecting them one at a time from the normal searchable picker.
-
-First choose the record type:
+The results page shows the discovery source and counts such as:
 
 ```text
-Door
-Area
-Input
-Output
+Doors: 6 found / 2 configured
+Areas: 6 found / 1 configured
+Inputs: 63 found / 18 configured
+Outputs: 41 found / 3 configured
 ```
 
-You can then enter an optional case-insensitive filter that matches either the database ID or programmed name. For example:
-
-```text
-Record Type: Input
-Filter: PIR
-```
-
-This produces a checkbox list containing only matching, currently unconfigured inputs, for example:
-
-```text
-☐ 21 — PIR Reception
-☐ 22 — PIR Boardroom
-☐ 24 — PIR Entrance
-☐ 23 — PIR Central Stairwell
-...
-```
-
-The bulk-selection page provides:
-
-* **Select all matching records** — adds every record currently shown by the filter when the form is submitted.
-* **Select none (add nothing)** — leaves the existing configuration unchanged.
-* Individual checkboxes — tick any combination of matching records and submit once.
-
-Already configured records are excluded from the Bulk Add list so this operation only adds records; it never removes existing entities. Use **Select / Remove Entities** for removals.
-
-Because Home Assistant's standard options-flow controls do not provide live Ctrl/Shift range selection or per-row action buttons, Bulk Add uses the native checkbox-list control for maximum compatibility with future Home Assistant frontend updates.
-
-### Select / Remove Entities
-
-The selection screen has four multi-select sections:
+Choose one of:
 
 ```text
 Doors
@@ -264,11 +222,49 @@ Inputs
 Outputs
 ```
 
+### Filter and bulk-add from scan results
+
+After choosing a record type, you can enter an optional case-insensitive filter matching the database ID or programmed name.
+
+For example:
+
+```text
+Inputs
+Filter: PIR
+```
+
+The next page shows only matching, currently unconfigured records:
+
+```text
+☐ Select all matching records
+☐ Select none (add nothing)
+
+☐ 21 — PIR Reception
+☐ 22 — PIR Boardroom
+☐ 23 — PIR Central Stairwell
+☐ 24 — PIR Entrance
+...
+```
+
+You can tick any combination of records and submit once.
+
+* **Select all matching records** adds every record shown by the current filter.
+* **Select none (add nothing)** leaves the existing configuration unchanged.
+* Already configured records are excluded from this page.
+* Adding records never removes existing entities.
+* Use **Select / Remove Entities** for removals.
+
+Home Assistant's standard options-flow controls do not provide Ctrl/Shift range selection or per-row `+` action buttons, so the integration uses the native checkbox-list control for frontend compatibility.
+
+### Select / Remove Entities
+
+This is the maintenance screen for the current configuration.
+
 Existing configured records are preselected.
 
-* Select a new record to expose it in Home Assistant.
 * Leave an existing record selected to keep it.
 * Clear an existing record to remove its Home Assistant entities.
+* If a scan has already been run in the current options-flow session, newly discovered records can also appear here.
 * Removals require a confirmation step.
 * Nothing is deleted from the Protege controller.
 
@@ -368,7 +364,7 @@ Otherwise use the actual Protege database record IDs.
 
 The saved WX operator account authenticated successfully and the controller's database lists were used. This is the authoritative source for current record IDs and programmed names.
 
-**Search or Bulk Add falls back to Automation Service**
+**Search falls back to Automation Service**
 
 Either WX operator credentials are not configured or the authenticated WX lookup failed. The fallback scan can still discover records, but it is not an authoritative WX database inventory and may show generic names or incomplete counts when database IDs are sparse.
 
