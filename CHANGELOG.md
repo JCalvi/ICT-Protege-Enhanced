@@ -4,6 +4,25 @@ All notable changes to this fork will be documented in this file.
 
 This project is forked from the original [`caboose014/ICT-Protege-Home-Assistant`](https://github.com/caboose014/ICT-Protege-Home-Assistant) integration by **caboose014**. Earlier history belongs to the upstream project; entries below document changes made in this fork.
 
+## 3.3.0 - 2026-10-03
+
+### Changed
+- Removed the separate pre-filter step from controller scan results.
+- Choosing Doors, Areas, Inputs or Outputs now opens Home Assistant's native searchable multi-select picker immediately, with all currently unconfigured records of that type available.
+- Typing into the picker's own search box filters the visible records live, matching the original scan-selection behaviour (for example typing `PIR` narrows the Input list to PIR records).
+- After records are added, the options flow now returns to **Controller Scan Results** instead of closing, allowing several record types to be handled from the same cached scan.
+- Added **Save Changes & Finish** to commit all additions staged during the current scan session.
+- Added **Return to Last Scan Results** to **Manage Protege Entities** while a scan is active, so the cached scan can be revisited without scanning again.
+
+### Retained
+- Already configured records remain excluded from the scan-add picker, so scan additions cannot remove existing entities.
+- **Select all available records** remains available, but explicitly applies to every available record of the selected type because Home Assistant does not expose the picker's live search text to the backend.
+- **Select none / back to scan results** returns to the cached scan-results menu without adding anything.
+- **Select / Remove Entities** remains the separate maintenance/removal workflow.
+
+### Documentation
+- Updated the README and UI text for the searchable reusable scan workflow.
+
 ## 3.2.0 - 2026-10-03
 
 ### Changed
