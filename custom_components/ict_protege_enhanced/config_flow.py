@@ -86,6 +86,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         self.options.setdefault(CONF_ENABLE_STAY, True)
         self.options.setdefault(CONF_ENABLE_NIGHT, True)
         self.options.setdefault(CONF_ENABLE_BYPASS, False)
+
         self._edit_type = None
         self._edit_id = None
         self._manage_available = {}
@@ -95,12 +96,15 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         self._manage_authoritative = False
         self._pending_options = None
         self._pending_diff = None
-        self._bulk_key = None
-        self._bulk_prefix = None
-        self._bulk_ids = set()
-        self._bulk_options = []
-        self._bulk_source = ""
-        self._bulk_filter = ""
+
+        # One Search / Refresh populates these cached scan results. The
+        # per-record-type bulk pages below do not scan the controller again.
+        self._scan_complete = False
+        self._scan_key = None
+        self._scan_prefix = None
+        self._scan_filter = ""
+        self._scan_visible_ids = set()
+        self._scan_options = []
 
     def _raw_records(self, key):
         value = self.options.get(key, {})
@@ -131,6 +135,14 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
     def _record_spec(self, key):
         return next((spec for spec in RECORD_SPECS if spec[0] == key), None)
 
+    def _scan_counts(self):
+        parts = []
+        for key, prefix, *_ in RECORD_SPECS:
+            found = len(self._manage_discovered.get(key, set()))
+            configured = len(selected_ids(self._raw_records(key)))
+            parts.append(f"{prefix}s: {found} found / {configured} configured")
+        return " • ".join(parts)
+
     async def async_step_init(self, user_input=None):
         return self.async_show_menu(
             step_id="init",
@@ -148,7 +160,6 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             step_id="manage_entities",
             menu_options=[
                 "manage_search",
-                "bulk_add",
                 "manage_select",
                 "manual_add",
                 "edit_device",
@@ -193,45 +204,6 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         if not await client.start_temp_connection():
             return None, False
         return client, True
-
-    async def _load_bulk_available(self, key):
-        spec = self._record_spec(key)
-        if spec is None:
-            return None
-        _key, _prefix, group, default_limit = spec
-
-        name_maps = await self._get_wx_name_maps()
-        if name_maps:
-            discovered_names = name_maps.get(key, {})
-            discovered = {int(record_id) for record_id in discovered_names}
-            source = "WX database (operator login)"
-        else:
-            discovered_names = {}
-            client, temporary = await self._get_scan_client()
-            if client is None:
-                return None
-            try:
-                discovered = set()
-                consecutive_fails = 0
-                for record_id in range(0, default_limit + 1):
-                    exists = await client.check_exists(group, record_id)
-                    await asyncio.sleep(0.1)
-                    if exists:
-                        discovered.add(record_id)
-                        consecutive_fails = 0
-                    else:
-                        consecutive_fails += 1
-                        if consecutive_fails >= 5:
-                            break
-            finally:
-                if temporary:
-                    await client.stop()
-            source = "Automation Service fallback"
-
-        self._manage_discovered[key] = discovered
-        self._manage_name_maps[key] = discovered_names
-        configured = selected_ids(self._raw_records(key))
-        return discovered - configured, discovered_names, source
 
     async def async_step_manage_search(self, user_input=None):
         if user_input is None:
@@ -305,7 +277,191 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             for key, prefix, *_ in RECORD_SPECS
         )
         self._manage_source = f"{source_name} search complete ({counts})"
-        return await self.async_step_manage_select()
+        self._scan_complete = True
+        return await self.async_step_scan_results()
+
+    async def async_step_scan_results(self, user_input=None):
+        if not self._scan_complete:
+            return await self.async_step_manage_search()
+
+        return self.async_show_menu(
+            step_id="scan_results",
+            menu_options=[
+                "scan_doors",
+                "scan_areas",
+                "scan_inputs",
+                "scan_outputs",
+                "manage_entities",
+            ],
+            description_placeholders={
+                "source": self._manage_source,
+                "counts": self._scan_counts(),
+            },
+        )
+
+    async def _start_scan_type(self, key):
+        if not self._scan_complete:
+            return await self.async_step_manage_search()
+
+        spec = self._record_spec(key)
+        if spec is None:
+            return await self.async_step_scan_results()
+
+        self._scan_key = key
+        self._scan_prefix = spec[1]
+        self._scan_filter = ""
+        self._scan_visible_ids = set()
+        self._scan_options = []
+        return await self.async_step_scan_filter()
+
+    async def async_step_scan_doors(self, user_input=None):
+        return await self._start_scan_type(CONF_DOORS)
+
+    async def async_step_scan_areas(self, user_input=None):
+        return await self._start_scan_type(CONF_AREAS)
+
+    async def async_step_scan_inputs(self, user_input=None):
+        return await self._start_scan_type(CONF_INPUTS)
+
+    async def async_step_scan_outputs(self, user_input=None):
+        return await self._start_scan_type(CONF_OUTPUTS)
+
+    async def async_step_scan_filter(self, user_input=None):
+        if not self._scan_complete or not self._scan_key or not self._scan_prefix:
+            return await self.async_step_scan_results()
+
+        errors = {}
+        filter_text = (
+            str(user_input.get("filter", "")).strip()
+            if user_input is not None
+            else self._scan_filter
+        )
+
+        if user_input is not None:
+            discovered_names = self._manage_name_maps.get(self._scan_key, {})
+            configured = selected_ids(self._raw_records(self._scan_key))
+            candidates = self._manage_discovered.get(self._scan_key, set()) - configured
+            filter_folded = filter_text.casefold()
+            options = []
+            visible_ids = set()
+
+            for record_id in sorted(candidates):
+                record = {
+                    "programmed_name": discovered_names.get(record_id),
+                    "custom_name": None,
+                }
+                name = effective_name(self._scan_prefix, record_id, record)
+                label = f"{record_id} — {name}"
+                if filter_folded and filter_folded not in label.casefold():
+                    continue
+                visible_ids.add(record_id)
+                options.append(
+                    selector.SelectOptionDict(value=str(record_id), label=label)
+                )
+
+            if not options:
+                errors["base"] = "no_scan_matches"
+            else:
+                self._scan_filter = filter_text
+                self._scan_visible_ids = visible_ids
+                self._scan_options = options
+                return await self.async_step_scan_select()
+
+        total = len(self._manage_discovered.get(self._scan_key, set()))
+        configured = len(selected_ids(self._raw_records(self._scan_key)))
+        available = len(
+            self._manage_discovered.get(self._scan_key, set())
+            - selected_ids(self._raw_records(self._scan_key))
+        )
+        return self.async_show_form(
+            step_id="scan_filter",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional("filter", default=filter_text): str,
+                }
+            ),
+            errors=errors,
+            description_placeholders={
+                "record_type": self._scan_prefix,
+                "total": str(total),
+                "configured": str(configured),
+                "available": str(available),
+            },
+        )
+
+    async def async_step_scan_select(self, user_input=None):
+        if (
+            not self._scan_complete
+            or not self._scan_key
+            or not self._scan_prefix
+            or not self._scan_options
+        ):
+            return await self.async_step_scan_filter()
+
+        errors = {}
+        if user_input is not None:
+            select_all = bool(user_input.get("select_all", False))
+            select_none = bool(user_input.get("select_none", False))
+
+            if select_all and select_none:
+                errors["base"] = "selection_conflict"
+            else:
+                try:
+                    submitted = {
+                        int(value) for value in (user_input.get("items", []) or [])
+                    }
+                    if not submitted.issubset(self._scan_visible_ids):
+                        raise ValueError("invalid ID")
+                except (TypeError, ValueError):
+                    errors["base"] = "invalid_selection"
+                else:
+                    if select_none:
+                        selected = set()
+                    elif select_all:
+                        selected = set(self._scan_visible_ids)
+                    else:
+                        selected = submitted
+
+                    if not selected:
+                        if select_none:
+                            return self.async_create_entry(title="", data=self.options)
+                        errors["base"] = "no_selection"
+                    else:
+                        current_ids = selected_ids(self._raw_records(self._scan_key))
+                        proposed = dict(self.options)
+                        proposed[self._scan_key] = build_selected_records(
+                            self._scan_prefix,
+                            self._raw_records(self._scan_key),
+                            current_ids | selected,
+                            self._manage_name_maps.get(self._scan_key, {}),
+                        )
+                        self._save_options(proposed)
+                        return self.async_create_entry(title="", data=self.options)
+
+        list_selector = selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=self._scan_options,
+                mode=selector.SelectSelectorMode.LIST,
+                multiple=True,
+            )
+        )
+        return self.async_show_form(
+            step_id="scan_select",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional("select_all", default=False): bool,
+                    vol.Optional("select_none", default=False): bool,
+                    vol.Optional("items", default=[]): list_selector,
+                }
+            ),
+            errors=errors,
+            description_placeholders={
+                "source": self._manage_source,
+                "filter": self._scan_filter or "(none)",
+                "count": str(len(self._scan_visible_ids)),
+                "record_type": self._scan_prefix,
+            },
+        )
 
     def _selector_for_records(self, key, prefix):
         discovered_names = self._manage_name_maps.get(key, {})
@@ -314,6 +470,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         available_ids = configured_ids | self._manage_discovered.get(key, set())
         self._manage_available[key] = available_ids
         options = []
+
         for record_id in sorted(available_ids):
             record = current.get(str(record_id)) or {
                 "programmed_name": discovered_names.get(record_id),
@@ -331,6 +488,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                     value=str(record_id), label=f"{record_id} — {name}"
                 )
             )
+
         return selector.SelectSelector(
             selector.SelectSelectorConfig(
                 options=options,
@@ -349,8 +507,11 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                     submitted = {
                         int(value) for value in (user_input.get(key, []) or [])
                     }
-                    if any(record_id < 0 for record_id in submitted) or not submitted.issubset(
-                        self._manage_available.get(key, set())
+                    if (
+                        any(record_id < 0 for record_id in submitted)
+                        or not submitted.issubset(
+                            self._manage_available.get(key, set())
+                        )
                     ):
                         raise ValueError("invalid ID")
                     proposed[key] = build_selected_records(
@@ -364,6 +525,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                     )
             except (TypeError, ValueError):
                 errors["base"] = "invalid_selection"
+
             if not errors:
                 if any(diff["removed"] for diff in diffs.values()):
                     self._pending_options = proposed
@@ -379,133 +541,12 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             schema[
                 vol.Optional(key, default=[str(value) for value in current_ids])
             ] = self._selector_for_records(key, prefix)
+
         return self.async_show_form(
             step_id="manage_select",
             data_schema=vol.Schema(schema),
             errors={} if user_input is None else errors,
             description_placeholders={"source": self._manage_source},
-        )
-
-    async def async_step_bulk_add(self, user_input=None):
-        errors = {}
-        if user_input is not None:
-            key = user_input["record_type"]
-            filter_text = str(user_input.get("filter", "")).strip()
-            spec = self._record_spec(key)
-            loaded = await self._load_bulk_available(key)
-            if spec is None or loaded is None:
-                errors["base"] = "cannot_connect"
-            else:
-                candidate_ids, discovered_names, source = loaded
-                _key, prefix, _group, _default_limit = spec
-                filter_folded = filter_text.casefold()
-                options = []
-                visible_ids = set()
-                for record_id in sorted(candidate_ids):
-                    record = {
-                        "programmed_name": discovered_names.get(record_id),
-                        "custom_name": None,
-                    }
-                    name = effective_name(prefix, record_id, record)
-                    label = f"{record_id} — {name}"
-                    if filter_folded and filter_folded not in label.casefold():
-                        continue
-                    visible_ids.add(record_id)
-                    options.append(
-                        selector.SelectOptionDict(value=str(record_id), label=label)
-                    )
-
-                if not options:
-                    errors["base"] = "no_bulk_matches"
-                else:
-                    self._bulk_key = key
-                    self._bulk_prefix = prefix
-                    self._bulk_ids = visible_ids
-                    self._bulk_options = options
-                    self._bulk_source = source
-                    self._bulk_filter = filter_text
-                    return await self.async_step_bulk_add_select()
-
-        return self.async_show_form(
-            step_id="bulk_add",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("record_type"): self._record_type_selector(),
-                    vol.Optional(
-                        "filter",
-                        default=(user_input or {}).get("filter", ""),
-                    ): str,
-                }
-            ),
-            errors=errors,
-        )
-
-    async def async_step_bulk_add_select(self, user_input=None):
-        if not self._bulk_key or not self._bulk_options:
-            return await self.async_step_bulk_add()
-
-        errors = {}
-        if user_input is not None:
-            select_all = bool(user_input.get("select_all", False))
-            select_none = bool(user_input.get("select_none", False))
-            if select_all and select_none:
-                errors["base"] = "selection_conflict"
-            else:
-                try:
-                    submitted = {
-                        int(value) for value in (user_input.get("items", []) or [])
-                    }
-                    if not submitted.issubset(self._bulk_ids):
-                        raise ValueError("invalid ID")
-                except (TypeError, ValueError):
-                    errors["base"] = "invalid_selection"
-                else:
-                    if select_none:
-                        selected = set()
-                    elif select_all:
-                        selected = set(self._bulk_ids)
-                    else:
-                        selected = submitted
-
-                    if not selected:
-                        if select_none:
-                            return self.async_create_entry(title="", data=self.options)
-                        errors["base"] = "no_selection"
-                    else:
-                        current_ids = selected_ids(self._raw_records(self._bulk_key))
-                        proposed = dict(self.options)
-                        proposed[self._bulk_key] = build_selected_records(
-                            self._bulk_prefix,
-                            self._raw_records(self._bulk_key),
-                            current_ids | selected,
-                            self._manage_name_maps.get(self._bulk_key, {}),
-                        )
-                        self._save_options(proposed)
-                        return self.async_create_entry(title="", data=self.options)
-
-        list_selector = selector.SelectSelector(
-            selector.SelectSelectorConfig(
-                options=self._bulk_options,
-                mode=selector.SelectSelectorMode.LIST,
-                multiple=True,
-            )
-        )
-        return self.async_show_form(
-            step_id="bulk_add_select",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional("select_all", default=False): bool,
-                    vol.Optional("select_none", default=False): bool,
-                    vol.Optional("items", default=[]): list_selector,
-                }
-            ),
-            errors=errors,
-            description_placeholders={
-                "source": self._bulk_source,
-                "filter": self._bulk_filter or "(none)",
-                "count": str(len(self._bulk_ids)),
-                "record_type": self._bulk_prefix,
-            },
         )
 
     async def async_step_manual_add(self, user_input=None):
@@ -551,25 +592,31 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             old = self._normalized_records(key)
             for record_id in removed:
                 lines.append(
-                    f"{prefix} {record_id} — {effective_name(prefix, record_id, old.get(str(record_id)))}"
+                    f"{prefix} {record_id} — "
+                    f"{effective_name(prefix, record_id, old.get(str(record_id)))}"
                 )
         return "\n".join(lines)
 
     async def async_step_confirm_entity_changes(self, user_input=None):
         if self._pending_options is None:
             return await self.async_step_manage_select()
+
         if user_input is not None:
             if user_input.get("confirm"):
                 self._save_options(self._pending_options)
                 self._pending_options = None
                 self._pending_diff = None
                 return self.async_create_entry(title="", data=self.options)
+
             self._pending_options = None
             self._pending_diff = None
             return await self.async_step_manage_select()
+
         return self.async_show_form(
             step_id="confirm_entity_changes",
-            data_schema=vol.Schema({vol.Required("confirm", default=False): bool}),
+            data_schema=vol.Schema(
+                {vol.Required("confirm", default=False): bool}
+            ),
             description_placeholders={"changes": self._removal_summary()},
         )
 
@@ -578,6 +625,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             self.options.update(user_input)
             self._save_options()
             return self.async_create_entry(title="", data=self.options)
+
         return self.async_show_form(
             step_id="configure_arming",
             data_schema=vol.Schema(
@@ -620,8 +668,10 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             self._edit_id = int(user_input["item"])
             self._edit_type = storage_key
             return await self.async_step_edit_confirm()
+
         if not records:
             return self.async_abort(reason="no_devices")
+
         options = [
             selector.SelectOptionDict(
                 value=str(record_id),
@@ -651,12 +701,16 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         prefix = RECORD_PREFIXES[key]
         records = self._normalized_records(key)
         record = records.get(str(self._edit_id), {})
+
         if user_input is not None:
-            record["custom_name"] = str(user_input.get("name", "")).strip() or None
+            record["custom_name"] = (
+                str(user_input.get("name", "")).strip() or None
+            )
             records[str(self._edit_id)] = record
             self.options[key] = records
             self._save_options()
             return self.async_create_entry(title="", data=self.options)
+
         current_custom = record.get("custom_name") or ""
         programmed = record.get("programmed_name") or f"{prefix} {self._edit_id}"
         return self.async_show_form(
@@ -705,6 +759,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                 return self.async_create_entry(title="", data=self.options)
             except Exception:
                 errors["base"] = "yaml_error"
+
         current = {
             key: self._normalized_records(key) for key, *_ in RECORD_SPECS
         }
@@ -738,6 +793,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             )
             self.data = merged
             return self.async_create_entry(title="", data=self.options)
+
         return self.async_show_form(
             step_id="configure_connection",
             data_schema=vol.Schema(
@@ -765,6 +821,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         has_saved_credentials = bool(
             str(self.data.get(CONF_WX_USERNAME, "")).strip()
         )
+
         if user_input is not None:
             merged = dict(self.data)
             if user_input.get("remove_wx_credentials", False):
@@ -778,6 +835,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
 
             username = str(user_input.get(CONF_WX_USERNAME, "")).strip()
             new_password = str(user_input.get(CONF_WX_PASSWORD, ""))
+
             if not username:
                 merged.pop(CONF_WX_USERNAME, None)
                 merged.pop(CONF_WX_PASSWORD, None)
@@ -813,11 +871,14 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                 default=self.data.get(CONF_WX_USERNAME, ""),
             ): str,
             vol.Optional(CONF_WX_PASSWORD, default=""): selector.TextSelector(
-                selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+                selector.TextSelectorConfig(
+                    type=selector.TextSelectorType.PASSWORD
+                )
             ),
         }
         if has_saved_credentials:
             schema[vol.Optional("remove_wx_credentials", default=False)] = bool
+
         return self.async_show_form(
             step_id="configure_wx_names",
             data_schema=vol.Schema(schema),
