@@ -4,6 +4,25 @@ All notable changes to this fork will be documented in this file.
 
 This project is forked from the original [`caboose014/ICT-Protege-Home-Assistant`](https://github.com/caboose014/ICT-Protege-Home-Assistant) integration by **caboose014**. Earlier history belongs to the upstream project; entries below document changes made in this fork.
 
+## 3.2.0 - 2026-10-03
+
+### Changed
+- Reworked entity discovery so **Search / Refresh Controller** is again the single discovery entry point.
+- After one controller scan, the options flow now opens **Controller Scan Results** with Doors, Areas, Inputs and Outputs as separate choices.
+- Scan results are cached for the current options-flow session; choosing a record type no longer performs another controller scan.
+- Removed the separate **Bulk Add Entities** item from **Manage Protege Entities** to avoid two competing discovery workflows.
+- Choosing a record type from the scan results opens an optional name/ID filter and then the native multi-checkbox add page.
+- The scan-results page shows found/configured counts for all record types and identifies the discovery source.
+- **Select / Remove Entities** remains available separately as the maintenance/removal workflow.
+
+### Retained
+- Bulk selection still supports individual checkboxes, **Select all matching records**, and **Select none (add nothing)**.
+- Already configured records are excluded from the scan-add list, so adding from scan results cannot remove existing entities.
+- Protege WX authenticated database discovery remains authoritative when WX operator credentials are configured, with Automation Service probing as fallback.
+
+### Documentation
+- Updated the README to describe the single-scan workflow and removed references to Bulk Add as a separate menu item.
+
 ## 3.1.0 - 2026-10-03
 
 ### Added
