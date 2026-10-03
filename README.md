@@ -32,10 +32,11 @@ On **Protege WX**, optional WX web-operator credentials can also be configured. 
 * **💡 Outputs**
   * Turn PGMs and other outputs On/Off.
 * **🧭 Manage Protege Entities**
-  * **Search / Refresh Controller** performs one discovery pass and then opens a **Controller Scan Results** menu.
-  * From the scan results, choose Doors, Areas, Inputs or Outputs, optionally filter by name or database ID, then tick multiple records and add them in one operation.
-  * The checkbox page supports **Select all matching records** and **Select none**.
-  * Already configured records are excluded from the scan-add list, so the scan workflow is additive only.
+  * **Search / Refresh Controller** performs one discovery pass and opens a reusable **Controller Scan Results** menu.
+  * Choose Doors, Areas, Inputs or Outputs and immediately open the native searchable multi-select list.
+  * The picker initially contains every unconfigured record of that type; typing text such as `PIR` filters the visible picker list live.
+  * After adding records, the flow returns to **Controller Scan Results** so another record type can be handled without rescanning.
+  * **Save Changes & Finish** commits all additions staged during the scan session.
   * **Select / Remove Entities** remains available as the maintenance/removal screen.
   * Manual addition remains available when discovery cannot find a record.
 * **🔎 Protege WX programmed-name discovery**
@@ -189,6 +190,8 @@ The menu contains:
 * **Manually Add Entity**
 * **Rename Entity**
 
+After a scan has been run in the current configuration session, **Return to Last Scan Results** also appears so you can revisit the cached scan without running it again.
+
 ### Search / Refresh Controller
 
 When WX operator credentials are configured, the integration logs in to the local Protege WX database API and retrieves the complete available record sets and programmed names for:
@@ -202,7 +205,7 @@ Outputs / PGMs
 
 If WX credentials are not configured, or the lookup fails, the integration uses Automation Service probing as the fallback.
 
-After the scan finishes, Home Assistant opens **Controller Scan Results** rather than the old all-in-one selection screen. The scan result is cached for the rest of that options-flow session; choosing a record type does **not** scan the controller again.
+After the scan finishes, Home Assistant opens **Controller Scan Results**. The scan remains cached for the rest of that options-flow session; choosing a record type does **not** scan the controller again.
 
 The results page shows the discovery source and counts such as:
 
@@ -220,41 +223,40 @@ Doors
 Areas
 Inputs
 Outputs
+Save Changes & Finish
+Back to Manage Protege Entities
 ```
 
-### Filter and bulk-add from scan results
+### Searchable multi-add from scan results
 
-After choosing a record type, you can enter an optional case-insensitive filter matching the database ID or programmed name.
+Choosing a record type now goes directly to the add screen. There is no separate pre-filter step.
 
-For example:
+For example, choosing **Inputs** gives one native Home Assistant multi-select picker containing every currently unconfigured input from the cached scan. Open **Records to add** and you immediately see the whole list. The picker has its own search box, so typing:
 
 ```text
-Inputs
-Filter: PIR
+PIR
 ```
 
-The next page shows only matching, currently unconfigured records:
+filters the visible list live to entries such as:
 
 ```text
-☐ Select all matching records
-☐ Select none (add nothing)
-
-☐ 21 — PIR Reception
-☐ 22 — PIR Boardroom
-☐ 23 — PIR Central Stairwell
-☐ 24 — PIR Entrance
+21 — PIR Reception
+22 — PIR Boardroom
+23 — PIR Central Stairwell
+24 — PIR Entrance
 ...
 ```
 
-You can tick any combination of records and submit once.
+Select as many records as required and submit once. The selected records are staged and Home Assistant returns to **Controller Scan Results**, allowing you to go straight into Doors, Areas, Inputs or Outputs again without rescanning.
 
-* **Select all matching records** adds every record shown by the current filter.
-* **Select none (add nothing)** leaves the existing configuration unchanged.
-* Already configured records are excluded from this page.
-* Adding records never removes existing entities.
-* Use **Select / Remove Entities** for removals.
+When all required types have been handled, choose **Save Changes & Finish**. Until that is selected, additions made through the scan workflow are staged within the current options-flow session.
 
-Home Assistant's standard options-flow controls do not provide Ctrl/Shift range selection or per-row `+` action buttons, so the integration uses the native checkbox-list control for frontend compatibility.
+The page also provides:
+
+* **Select all available records (ignores search text)** — adds every currently unconfigured record of that type. Because the Home Assistant picker's live search text is frontend-only, this option cannot see or act on the current search filter.
+* **Select none / back to scan results** — returns to the scan-results menu without adding anything.
+
+Already configured records are excluded from the scan-add picker, so adding from scan results cannot remove existing entities. Use **Select / Remove Entities** for removals.
 
 ### Select / Remove Entities
 
