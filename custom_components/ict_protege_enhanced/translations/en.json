@@ -35,9 +35,10 @@
       },
       "manage_entities": {
         "title": "Manage Protege Entities",
-        "description": "Search the controller, choose which records Home Assistant exposes, manually add a database ID, or rename an existing entity.",
+        "description": "Search the controller, bulk-add records, choose which records Home Assistant exposes, manually add a database ID, or rename an existing entity.",
         "menu_options": {
           "manage_search": "Search / Refresh Controller",
+          "bulk_add": "Bulk Add Entities",
           "manage_select": "Select / Remove Entities",
           "manual_add": "Manually Add Entity",
           "edit_device": "Rename Entity",
@@ -52,6 +53,23 @@
           "limit_areas": "Highest Area ID to Scan (Automation fallback only)",
           "limit_inputs": "Highest Input ID to Scan (Automation fallback only)",
           "limit_outputs": "Highest Output ID to Scan (Automation fallback only)"
+        }
+      },
+      "bulk_add": {
+        "title": "Bulk Add Protege Entities",
+        "description": "Choose one record type and optionally filter by ID or programmed name. Already configured records are excluded. For example, choose Inputs and enter PIR to show only unconfigured PIR inputs.",
+        "data": {
+          "record_type": "Record Type",
+          "filter": "Filter (optional)"
+        }
+      },
+      "bulk_add_select": {
+        "title": "Bulk Add {record_type}s",
+        "description": "{count} matching unconfigured records. Filter: {filter}. Source: {source}. Tick individual records, or use Select all matching records. Select none adds nothing and leaves the current configuration unchanged.",
+        "data": {
+          "select_all": "Select all matching records",
+          "select_none": "Select none (add nothing)",
+          "items": "Records to add"
         }
       },
       "manage_select": {
@@ -156,6 +174,9 @@
       "invalid_auth": "Service PIN rejected.",
       "wx_auth": "Protege WX operator login failed. The credentials were not saved.",
       "invalid_selection": "The submitted selection contained an invalid or unavailable record ID.",
+      "no_bulk_matches": "No unconfigured records matched that type and filter.",
+      "no_selection": "Select at least one record, or choose Select all matching records.",
+      "selection_conflict": "Select all and Select none cannot both be enabled.",
       "yaml_error": "The YAML configuration is invalid."
     },
     "abort": {
