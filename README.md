@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="custom_components/ict_automation/brands/icon@2x.png" width="150" height="150" alt="ICT Automation Icon">
+  <img src="custom_components/ict_protege_enhanced/brand/icon@2x.png" width="150" height="150" alt="ICT Protege Enhanced Icon">
 </p>
 
-# ICT Protege Automation for Home Assistant
+# ICT Protege Enhanced for Home Assistant
 
 A custom Home Assistant integration for **ICT Protege WX** and **Protege GX** systems using the controller's Automation and Control service.
 
@@ -141,7 +141,7 @@ Once a selected record's programmed name has been saved in Home Assistant, that 
 ### Manual
 
 1. Download this repository.
-2. Copy `custom_components/ict_automation` into Home Assistant's `/config/custom_components/` directory.
+2. Copy `custom_components/ict_protege_enhanced` into Home Assistant's `/config/custom_components/` directory.
 3. Restart Home Assistant.
 
 ---
@@ -149,7 +149,7 @@ Once a selected record's programmed name has been saved in Home Assistant, that 
 ## 🔧 Initial Configuration
 
 1. Go to **Settings → Devices & Services → Add Integration**.
-2. Search for **ICT Protege Automation**.
+2. Search for **ICT Protege Enhanced**.
 3. Enter:
    * **Host:** IP address of the ICT controller.
    * **Port:** `21000` unless you deliberately configured another port.
@@ -163,7 +163,7 @@ The integration can operate without WX web-operator credentials, but searches wi
 
 For Protege WX, configure a web operator at:
 
-**Settings → Devices & Services → ICT Protege Automation → Configure → Configure WX Name Lookup**
+**Settings → Devices & Services → ICT Protege Enhanced → Configure → Configure WX Name Lookup**
 
 Enter a valid **Protege WX web operator username and password**. The integration validates the login before saving it.
 
@@ -180,7 +180,7 @@ When editing them later:
 
 Entity configuration is centred on:
 
-**Settings → Devices & Services → ICT Protege Automation → Configure → Manage Protege Entities**
+**Settings → Devices & Services → ICT Protege Enhanced → Configure → Manage Protege Entities**
 
 The menu contains:
 
