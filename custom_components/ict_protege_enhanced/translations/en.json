@@ -35,10 +35,9 @@
       },
       "manage_entities": {
         "title": "Manage Protege Entities",
-        "description": "Search the controller, bulk-add records, choose which records Home Assistant exposes, manually add a database ID, or rename an existing entity.",
+        "description": "Search the controller to discover and bulk-add records, review or remove configured records, manually add a database ID, or rename an existing entity.",
         "menu_options": {
           "manage_search": "Search / Refresh Controller",
-          "bulk_add": "Bulk Add Entities",
           "manage_select": "Select / Remove Entities",
           "manual_add": "Manually Add Entity",
           "edit_device": "Rename Entity",
@@ -47,7 +46,7 @@
       },
       "manage_search": {
         "title": "Search / Refresh Controller",
-        "description": "On Protege WX, configured WX web-operator credentials are used to retrieve the authoritative database record lists and programmed names. If WX credentials are not configured or the lookup fails, Automation Service probing is used as a fallback. Searching does not enable newly discovered records; you choose them on the next screen.",
+        "description": "On Protege WX, configured WX web-operator credentials are used to retrieve the authoritative database record lists and programmed names. If WX credentials are not configured or the lookup fails, Automation Service probing is used as a fallback. The scan runs once; the next screen lets you choose Doors, Areas, Inputs or Outputs and bulk-add from those cached results.",
         "data": {
           "limit_doors": "Highest Door ID to Scan (Automation fallback only)",
           "limit_areas": "Highest Area ID to Scan (Automation fallback only)",
@@ -55,16 +54,26 @@
           "limit_outputs": "Highest Output ID to Scan (Automation fallback only)"
         }
       },
-      "bulk_add": {
-        "title": "Bulk Add Protege Entities",
-        "description": "Choose one record type and optionally filter by ID or programmed name. Already configured records are excluded. For example, choose Inputs and enter PIR to show only unconfigured PIR inputs.",
+      "scan_results": {
+        "title": "Controller Scan Results",
+        "description": "Source: {source}\n\n{counts}\n\nChoose a record type to filter and bulk-add unconfigured records from this scan. No additional controller scan is performed.",
+        "menu_options": {
+          "scan_doors": "Doors",
+          "scan_areas": "Areas",
+          "scan_inputs": "Inputs",
+          "scan_outputs": "Outputs",
+          "manage_entities": "Back to Manage Protege Entities"
+        }
+      },
+      "scan_filter": {
+        "title": "Filter {record_type}s",
+        "description": "{total} found in the scan, {configured} already configured, {available} available to add. Optionally filter by database ID or programmed name, for example PIR.",
         "data": {
-          "record_type": "Record Type",
           "filter": "Filter (optional)"
         }
       },
-      "bulk_add_select": {
-        "title": "Bulk Add {record_type}s",
+      "scan_select": {
+        "title": "Add {record_type}s",
         "description": "{count} matching unconfigured records. Filter: {filter}. Source: {source}. Tick individual records, or use Select all matching records. Select none adds nothing and leaves the current configuration unchanged.",
         "data": {
           "select_all": "Select all matching records",
@@ -73,8 +82,8 @@
         }
       },
       "manage_select": {
-        "title": "Select Protege Entities",
-        "description": "Existing records are preselected. Select a record to add it; clear it to remove it. Source: {source}.",
+        "title": "Select / Remove Protege Entities",
+        "description": "Existing records are preselected. This maintenance screen is mainly for reviewing or removing configured records. If a controller scan has been run in this session, its discovered records are also available here. Source: {source}.",
         "data": {
           "doors": "Doors",
           "areas": "Areas",
@@ -111,19 +120,27 @@
       },
       "edit_door": {
         "title": "Rename Door",
-        "data": {"item": "Door"}
+        "data": {
+          "item": "Door"
+        }
       },
       "edit_area": {
         "title": "Rename Area",
-        "data": {"item": "Area"}
+        "data": {
+          "item": "Area"
+        }
       },
       "edit_input": {
         "title": "Rename Input",
-        "data": {"item": "Input"}
+        "data": {
+          "item": "Input"
+        }
       },
       "edit_output": {
         "title": "Rename Output",
-        "data": {"item": "Output"}
+        "data": {
+          "item": "Output"
+        }
       },
       "edit_confirm": {
         "title": "Rename Entity",
@@ -174,7 +191,7 @@
       "invalid_auth": "Service PIN rejected.",
       "wx_auth": "Protege WX operator login failed. The credentials were not saved.",
       "invalid_selection": "The submitted selection contained an invalid or unavailable record ID.",
-      "no_bulk_matches": "No unconfigured records matched that type and filter.",
+      "no_scan_matches": "No unconfigured records matched that record type and filter.",
       "no_selection": "Select at least one record, or choose Select all matching records.",
       "selection_conflict": "Select all and Select none cannot both be enabled.",
       "yaml_error": "The YAML configuration is invalid."
