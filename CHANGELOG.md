@@ -4,6 +4,20 @@ All notable changes to this fork will be documented in this file.
 
 This project is forked from the original [`caboose014/ICT-Protege-Home-Assistant`](https://github.com/caboose014/ICT-Protege-Home-Assistant) integration by **caboose014**. Earlier history belongs to the upstream project; entries below document changes made in this fork.
 
+## 3.0.1 - 2026-10-03
+
+### Changed
+- Renamed this fork to **ICT Protege Enhanced**.
+- Changed the Home Assistant integration domain from `ict_automation` to `ict_protege_enhanced`, allowing this fork and the original integration to be installed side by side.
+- Renamed the custom-component directory to `custom_components/ict_protege_enhanced`.
+- Updated HACS metadata, installation documentation and the release workflow for the new integration name and domain.
+- Moved local Home Assistant branding into the supported `brand/` directory.
+
+### Compatibility
+- This is intentionally a new Home Assistant integration identity. Existing config entries created under the old `ict_automation` domain are not automatically migrated to `ict_protege_enhanced`.
+- Existing users of this fork should install **ICT Protege Enhanced** and configure it as a new integration before removing the old `ict_automation` copy if they are transitioning.
+- Entity unique-ID formats remain unchanged, but they are scoped to the new integration domain so the original integration and ICT Protege Enhanced can coexist.
+
 ## 2.0.6 - 2026-10-01
 
 ### Changed
