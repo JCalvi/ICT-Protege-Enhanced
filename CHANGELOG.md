@@ -4,6 +4,23 @@ All notable changes to this fork will be documented in this file.
 
 This project is forked from the original [`caboose014/ICT-Protege-Home-Assistant`](https://github.com/caboose014/ICT-Protege-Home-Assistant) integration by **caboose014**. Earlier history belongs to the upstream project; entries below document changes made in this fork.
 
+## 3.1.0 - 2026-10-03
+
+### Added
+- Added **Bulk Add Entities** under **Manage Protege Entities**.
+- Bulk Add supports Doors, Areas, Inputs and Outputs.
+- Added an optional case-insensitive filter against record ID and programmed name, making it easy to narrow a large list to records such as all inputs containing `PIR`.
+- Added a native Home Assistant checkbox-list page so multiple matching records can be selected and added in one operation.
+- Added **Select all matching records** and **Select none (add nothing)** controls to the bulk-selection page.
+
+### Changed
+- Bulk Add excludes records that are already configured, so the workflow is additive only and cannot accidentally remove existing entities.
+- Bulk Add uses the same authenticated Protege WX database/name lookup as normal discovery when WX operator credentials are configured, with Automation Service probing retained as the fallback.
+- Updated the README for the new bulk workflow and corrected the HACS repository URL to `JCalvi/ICT-Protege-Enhanced`.
+
+### Notes
+- Home Assistant's standard config-flow controls do not provide Ctrl/Shift range selection or per-row action buttons. The implementation therefore uses the supported native checkbox-list control for frontend compatibility.
+
 ## 3.0.1 - 2026-10-03
 
 ### Changed
