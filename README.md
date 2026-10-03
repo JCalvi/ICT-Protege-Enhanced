@@ -35,8 +35,8 @@ On **Protege WX**, optional WX web-operator credentials can also be configured. 
   * **Search / Refresh Controller** performs one discovery pass and opens a reusable **Controller Scan Results** menu.
   * Choose Doors, Areas, Inputs or Outputs and immediately open the native searchable multi-select list.
   * The picker initially contains every unconfigured record of that type; typing text such as `PIR` filters the visible picker list live.
-  * After adding records, the flow returns to **Controller Scan Results** so another record type can be handled without rescanning.
-  * **Save Changes & Finish** commits all additions staged during the scan session.
+  * Each successful add is saved immediately and returns to **Controller Scan Results**, so another record type can be handled without rescanning.
+  * **Return to Last Scan Results** lets you revisit the cached scan while the same configuration session remains open.
   * **Select / Remove Entities** remains available as the maintenance/removal screen.
   * Manual addition remains available when discovery cannot find a record.
 * **🔎 Protege WX programmed-name discovery**
@@ -223,13 +223,12 @@ Doors
 Areas
 Inputs
 Outputs
-Save Changes & Finish
 Back to Manage Protege Entities
 ```
 
 ### Searchable multi-add from scan results
 
-Choosing a record type now goes directly to the add screen. There is no separate pre-filter step.
+Choosing a record type goes directly to the add screen. There is no separate pre-filter step.
 
 For example, choosing **Inputs** gives one native Home Assistant multi-select picker containing every currently unconfigured input from the cached scan. Open **Records to add** and you immediately see the whole list. The picker has its own search box, so typing:
 
@@ -247,14 +246,12 @@ filters the visible list live to entries such as:
 ...
 ```
 
-Select as many records as required and submit once. The selected records are staged and Home Assistant returns to **Controller Scan Results**, allowing you to go straight into Doors, Areas, Inputs or Outputs again without rescanning.
-
-When all required types have been handled, choose **Save Changes & Finish**. Until that is selected, additions made through the scan workflow are staged within the current options-flow session.
+Select as many records as required and submit once. The selected records are **saved immediately** and Home Assistant returns to **Controller Scan Results**, allowing you to go straight into Doors, Areas, Inputs or Outputs again without rescanning. There is no separate final-save step for this workflow.
 
 The page also provides:
 
-* **Select all available records (ignores search text)** — adds every currently unconfigured record of that type. Because the Home Assistant picker's live search text is frontend-only, this option cannot see or act on the current search filter.
-* **Select none / back to scan results** — returns to the scan-results menu without adding anything.
+* **Add all available records (ignores search text)** — adds every currently unconfigured record of that type. Because the Home Assistant picker's live search text is frontend-only, this option cannot see or act on the current search filter.
+* **Back to scan results without adding** — returns to the scan-results menu without adding anything.
 
 Already configured records are excluded from the scan-add picker, so adding from scan results cannot remove existing entities. Use **Select / Remove Entities** for removals.
 
