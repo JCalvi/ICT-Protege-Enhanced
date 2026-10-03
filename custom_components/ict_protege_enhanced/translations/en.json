@@ -66,15 +66,15 @@
         }
       },
       "scan_filter": {
-        "title": "Filter {record_type}s",
-        "description": "{total} found in the scan, {configured} already configured, {available} available to add. Optionally filter by database ID or programmed name, for example PIR.",
+        "title": "Filter Scan Results",
+        "description": "{record_type}s: {total} found in the scan, {configured} already configured, {available} available to add. Optionally filter by database ID or programmed name, for example PIR.",
         "data": {
           "filter": "Filter (optional)"
         }
       },
       "scan_select": {
-        "title": "Add {record_type}s",
-        "description": "{count} matching unconfigured records. Filter: {filter}. Source: {source}. Tick individual records, or use Select all matching records. Select none adds nothing and leaves the current configuration unchanged.",
+        "title": "Add Scan Results",
+        "description": "{record_type}s: {count} matching unconfigured records. Filter: {filter}. Source: {source}. Tick individual records, or use Select all matching records. Select none adds nothing and leaves the current configuration unchanged.",
         "data": {
           "select_all": "Select all matching records",
           "select_none": "Select none (add nothing)",
