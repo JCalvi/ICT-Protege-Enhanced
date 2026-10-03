@@ -95,6 +95,12 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         self._manage_authoritative = False
         self._pending_options = None
         self._pending_diff = None
+        self._bulk_key = None
+        self._bulk_prefix = None
+        self._bulk_ids = set()
+        self._bulk_options = []
+        self._bulk_source = ""
+        self._bulk_filter = ""
 
     def _raw_records(self, key):
         value = self.options.get(key, {})
@@ -108,6 +114,22 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
     def _save_options(self, new_options=None):
         if new_options is not None:
             self.options = new_options
+
+    def _record_type_selector(self):
+        return selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=[
+                    {"value": CONF_DOORS, "label": "Door"},
+                    {"value": CONF_AREAS, "label": "Area"},
+                    {"value": CONF_INPUTS, "label": "Input"},
+                    {"value": CONF_OUTPUTS, "label": "Output"},
+                ],
+                mode=selector.SelectSelectorMode.DROPDOWN,
+            )
+        )
+
+    def _record_spec(self, key):
+        return next((spec for spec in RECORD_SPECS if spec[0] == key), None)
 
     async def async_step_init(self, user_input=None):
         return self.async_show_menu(
@@ -126,6 +148,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             step_id="manage_entities",
             menu_options=[
                 "manage_search",
+                "bulk_add",
                 "manage_select",
                 "manual_add",
                 "edit_device",
@@ -170,6 +193,45 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         if not await client.start_temp_connection():
             return None, False
         return client, True
+
+    async def _load_bulk_available(self, key):
+        spec = self._record_spec(key)
+        if spec is None:
+            return None
+        _key, _prefix, group, default_limit = spec
+
+        name_maps = await self._get_wx_name_maps()
+        if name_maps:
+            discovered_names = name_maps.get(key, {})
+            discovered = {int(record_id) for record_id in discovered_names}
+            source = "WX database (operator login)"
+        else:
+            discovered_names = {}
+            client, temporary = await self._get_scan_client()
+            if client is None:
+                return None
+            try:
+                discovered = set()
+                consecutive_fails = 0
+                for record_id in range(0, default_limit + 1):
+                    exists = await client.check_exists(group, record_id)
+                    await asyncio.sleep(0.1)
+                    if exists:
+                        discovered.add(record_id)
+                        consecutive_fails = 0
+                    else:
+                        consecutive_fails += 1
+                        if consecutive_fails >= 5:
+                            break
+            finally:
+                if temporary:
+                    await client.stop()
+            source = "Automation Service fallback"
+
+        self._manage_discovered[key] = discovered
+        self._manage_name_maps[key] = discovered_names
+        configured = selected_ids(self._raw_records(key))
+        return discovered - configured, discovered_names, source
 
     async def async_step_manage_search(self, user_input=None):
         if user_input is None:
@@ -324,6 +386,128 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             description_placeholders={"source": self._manage_source},
         )
 
+    async def async_step_bulk_add(self, user_input=None):
+        errors = {}
+        if user_input is not None:
+            key = user_input["record_type"]
+            filter_text = str(user_input.get("filter", "")).strip()
+            spec = self._record_spec(key)
+            loaded = await self._load_bulk_available(key)
+            if spec is None or loaded is None:
+                errors["base"] = "cannot_connect"
+            else:
+                candidate_ids, discovered_names, source = loaded
+                _key, prefix, _group, _default_limit = spec
+                filter_folded = filter_text.casefold()
+                options = []
+                visible_ids = set()
+                for record_id in sorted(candidate_ids):
+                    record = {
+                        "programmed_name": discovered_names.get(record_id),
+                        "custom_name": None,
+                    }
+                    name = effective_name(prefix, record_id, record)
+                    label = f"{record_id} — {name}"
+                    if filter_folded and filter_folded not in label.casefold():
+                        continue
+                    visible_ids.add(record_id)
+                    options.append(
+                        selector.SelectOptionDict(value=str(record_id), label=label)
+                    )
+
+                if not options:
+                    errors["base"] = "no_bulk_matches"
+                else:
+                    self._bulk_key = key
+                    self._bulk_prefix = prefix
+                    self._bulk_ids = visible_ids
+                    self._bulk_options = options
+                    self._bulk_source = source
+                    self._bulk_filter = filter_text
+                    return await self.async_step_bulk_add_select()
+
+        return self.async_show_form(
+            step_id="bulk_add",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("record_type"): self._record_type_selector(),
+                    vol.Optional(
+                        "filter",
+                        default=(user_input or {}).get("filter", ""),
+                    ): str,
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_bulk_add_select(self, user_input=None):
+        if not self._bulk_key or not self._bulk_options:
+            return await self.async_step_bulk_add()
+
+        errors = {}
+        if user_input is not None:
+            select_all = bool(user_input.get("select_all", False))
+            select_none = bool(user_input.get("select_none", False))
+            if select_all and select_none:
+                errors["base"] = "selection_conflict"
+            else:
+                try:
+                    submitted = {
+                        int(value) for value in (user_input.get("items", []) or [])
+                    }
+                    if not submitted.issubset(self._bulk_ids):
+                        raise ValueError("invalid ID")
+                except (TypeError, ValueError):
+                    errors["base"] = "invalid_selection"
+                else:
+                    if select_none:
+                        selected = set()
+                    elif select_all:
+                        selected = set(self._bulk_ids)
+                    else:
+                        selected = submitted
+
+                    if not selected:
+                        if select_none:
+                            return self.async_create_entry(title="", data=self.options)
+                        errors["base"] = "no_selection"
+                    else:
+                        current_ids = selected_ids(self._raw_records(self._bulk_key))
+                        proposed = dict(self.options)
+                        proposed[self._bulk_key] = build_selected_records(
+                            self._bulk_prefix,
+                            self._raw_records(self._bulk_key),
+                            current_ids | selected,
+                            self._manage_name_maps.get(self._bulk_key, {}),
+                        )
+                        self._save_options(proposed)
+                        return self.async_create_entry(title="", data=self.options)
+
+        list_selector = selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=self._bulk_options,
+                mode=selector.SelectSelectorMode.LIST,
+                multiple=True,
+            )
+        )
+        return self.async_show_form(
+            step_id="bulk_add_select",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional("select_all", default=False): bool,
+                    vol.Optional("select_none", default=False): bool,
+                    vol.Optional("items", default=[]): list_selector,
+                }
+            ),
+            errors=errors,
+            description_placeholders={
+                "source": self._bulk_source,
+                "filter": self._bulk_filter or "(none)",
+                "count": str(len(self._bulk_ids)),
+                "record_type": self._bulk_prefix,
+            },
+        )
+
     async def async_step_manual_add(self, user_input=None):
         errors = {}
         if user_input is not None:
@@ -346,22 +530,11 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                     self._save_options(proposed)
                     return self.async_create_entry(title="", data=self.options)
 
-        type_selector = selector.SelectSelector(
-            selector.SelectSelectorConfig(
-                options=[
-                    {"value": CONF_DOORS, "label": "Door"},
-                    {"value": CONF_AREAS, "label": "Area"},
-                    {"value": CONF_INPUTS, "label": "Input"},
-                    {"value": CONF_OUTPUTS, "label": "Output"},
-                ],
-                mode=selector.SelectSelectorMode.DROPDOWN,
-            )
-        )
         return self.async_show_form(
             step_id="manual_add",
             data_schema=vol.Schema(
                 {
-                    vol.Required("record_type"): type_selector,
+                    vol.Required("record_type"): self._record_type_selector(),
                     vol.Required("record_id"): int,
                     vol.Optional("name", default=""): str,
                 }
