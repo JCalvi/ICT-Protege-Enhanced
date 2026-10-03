@@ -97,13 +97,12 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         self._pending_options = None
         self._pending_diff = None
 
-        # One Search / Refresh populates these cached scan results. The
-        # per-record-type bulk pages below do not scan the controller again.
+        # A Search / Refresh populates these cached results for the lifetime
+        # of this options-flow session. Record-type pages never rescan.
         self._scan_complete = False
         self._scan_key = None
         self._scan_prefix = None
-        self._scan_filter = ""
-        self._scan_visible_ids = set()
+        self._scan_available_ids = set()
         self._scan_options = []
 
     def _raw_records(self, key):
@@ -156,15 +155,20 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
         )
 
     async def async_step_manage_entities(self, user_input=None):
-        return self.async_show_menu(
-            step_id="manage_entities",
-            menu_options=[
-                "manage_search",
+        menu_options = ["manage_search"]
+        if self._scan_complete:
+            menu_options.append("scan_results")
+        menu_options.extend(
+            [
                 "manage_select",
                 "manual_add",
                 "edit_device",
                 "back",
-            ],
+            ]
+        )
+        return self.async_show_menu(
+            step_id="manage_entities",
+            menu_options=menu_options,
         )
 
     async def _get_wx_name_maps(self):
@@ -185,7 +189,8 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
             )
         except Exception as err:
             _LOGGER.warning(
-                "Could not retrieve Protege WX database lists with the configured operator; using Automation Service scan: %s",
+                "Could not retrieve Protege WX database lists with the "
+                "configured operator; using Automation Service scan: %s",
                 err,
             )
             return {}
@@ -291,6 +296,7 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                 "scan_areas",
                 "scan_inputs",
                 "scan_outputs",
+                "scan_finish",
                 "manage_entities",
             ],
             description_placeholders={
@@ -298,6 +304,10 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                 "counts": self._scan_counts(),
             },
         )
+
+    async def async_step_scan_finish(self, user_input=None):
+        """Save all additions staged during this scan session."""
+        return self.async_create_entry(title="", data=self.options)
 
     async def _start_scan_type(self, key):
         if not self._scan_complete:
@@ -309,10 +319,26 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
 
         self._scan_key = key
         self._scan_prefix = spec[1]
-        self._scan_filter = ""
-        self._scan_visible_ids = set()
+
+        discovered_names = self._manage_name_maps.get(key, {})
+        configured = selected_ids(self._raw_records(key))
+        candidates = self._manage_discovered.get(key, set()) - configured
+
+        self._scan_available_ids = set(candidates)
         self._scan_options = []
-        return await self.async_step_scan_filter()
+        for record_id in sorted(candidates):
+            record = {
+                "programmed_name": discovered_names.get(record_id),
+                "custom_name": None,
+            }
+            name = effective_name(self._scan_prefix, record_id, record)
+            self._scan_options.append(
+                selector.SelectOptionDict(
+                    value=str(record_id), label=f"{record_id} — {name}"
+                )
+            )
+
+        return await self.async_step_scan_select()
 
     async def async_step_scan_doors(self, user_input=None):
         return await self._start_scan_type(CONF_DOORS)
@@ -326,77 +352,9 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_scan_outputs(self, user_input=None):
         return await self._start_scan_type(CONF_OUTPUTS)
 
-    async def async_step_scan_filter(self, user_input=None):
+    async def async_step_scan_select(self, user_input=None):
         if not self._scan_complete or not self._scan_key or not self._scan_prefix:
             return await self.async_step_scan_results()
-
-        errors = {}
-        filter_text = (
-            str(user_input.get("filter", "")).strip()
-            if user_input is not None
-            else self._scan_filter
-        )
-
-        if user_input is not None:
-            discovered_names = self._manage_name_maps.get(self._scan_key, {})
-            configured = selected_ids(self._raw_records(self._scan_key))
-            candidates = self._manage_discovered.get(self._scan_key, set()) - configured
-            filter_folded = filter_text.casefold()
-            options = []
-            visible_ids = set()
-
-            for record_id in sorted(candidates):
-                record = {
-                    "programmed_name": discovered_names.get(record_id),
-                    "custom_name": None,
-                }
-                name = effective_name(self._scan_prefix, record_id, record)
-                label = f"{record_id} — {name}"
-                if filter_folded and filter_folded not in label.casefold():
-                    continue
-                visible_ids.add(record_id)
-                options.append(
-                    selector.SelectOptionDict(value=str(record_id), label=label)
-                )
-
-            if not options:
-                errors["base"] = "no_scan_matches"
-            else:
-                self._scan_filter = filter_text
-                self._scan_visible_ids = visible_ids
-                self._scan_options = options
-                return await self.async_step_scan_select()
-
-        total = len(self._manage_discovered.get(self._scan_key, set()))
-        configured = len(selected_ids(self._raw_records(self._scan_key)))
-        available = len(
-            self._manage_discovered.get(self._scan_key, set())
-            - selected_ids(self._raw_records(self._scan_key))
-        )
-        return self.async_show_form(
-            step_id="scan_filter",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional("filter", default=filter_text): str,
-                }
-            ),
-            errors=errors,
-            description_placeholders={
-                "record_type": self._scan_prefix,
-                "total": str(total),
-                "configured": str(configured),
-                "available": str(available),
-            },
-        )
-
-    async def async_step_scan_select(self, user_input=None):
-        if (
-            not self._scan_complete
-            or not self._scan_key
-            or not self._scan_prefix
-            or not self._scan_options
-        ):
-            return await self.async_step_scan_filter()
 
         errors = {}
         if user_input is not None:
@@ -410,24 +368,25 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                     submitted = {
                         int(value) for value in (user_input.get("items", []) or [])
                     }
-                    if not submitted.issubset(self._scan_visible_ids):
+                    if not submitted.issubset(self._scan_available_ids):
                         raise ValueError("invalid ID")
                 except (TypeError, ValueError):
                     errors["base"] = "invalid_selection"
                 else:
                     if select_none:
-                        selected = set()
-                    elif select_all:
-                        selected = set(self._scan_visible_ids)
-                    else:
-                        selected = submitted
+                        return await self.async_step_scan_results()
 
+                    selected = (
+                        set(self._scan_available_ids)
+                        if select_all
+                        else submitted
+                    )
                     if not selected:
-                        if select_none:
-                            return self.async_create_entry(title="", data=self.options)
                         errors["base"] = "no_selection"
                     else:
-                        current_ids = selected_ids(self._raw_records(self._scan_key))
+                        current_ids = selected_ids(
+                            self._raw_records(self._scan_key)
+                        )
                         proposed = dict(self.options)
                         proposed[self._scan_key] = build_selected_records(
                             self._scan_prefix,
@@ -436,12 +395,14 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                             self._manage_name_maps.get(self._scan_key, {}),
                         )
                         self._save_options(proposed)
-                        return self.async_create_entry(title="", data=self.options)
+                        # Keep this options flow alive so another record type can
+                        # be added from the same cached scan before one final save.
+                        return await self.async_step_scan_results()
 
-        list_selector = selector.SelectSelector(
+        searchable_selector = selector.SelectSelector(
             selector.SelectSelectorConfig(
                 options=self._scan_options,
-                mode=selector.SelectSelectorMode.LIST,
+                mode=selector.SelectSelectorMode.DROPDOWN,
                 multiple=True,
             )
         )
@@ -451,14 +412,13 @@ class ICTOptionsFlowHandler(config_entries.OptionsFlow):
                 {
                     vol.Optional("select_all", default=False): bool,
                     vol.Optional("select_none", default=False): bool,
-                    vol.Optional("items", default=[]): list_selector,
+                    vol.Optional("items", default=[]): searchable_selector,
                 }
             ),
             errors=errors,
             description_placeholders={
                 "source": self._manage_source,
-                "filter": self._scan_filter or "(none)",
-                "count": str(len(self._scan_visible_ids)),
+                "count": str(len(self._scan_available_ids)),
                 "record_type": self._scan_prefix,
             },
         )
