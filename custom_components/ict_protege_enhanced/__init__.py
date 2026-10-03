@@ -1,8 +1,12 @@
 import logging
+from pathlib import Path
 
+from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.loader import async_get_integration
 
 from .const import (
     CONF_AREAS,
@@ -18,9 +22,24 @@ from .ict_library import ICTClient
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["lock", "binary_sensor", "switch", "alarm_control_panel", "select"]
+FRONTEND_URL = f"/{DOMAIN}/protege-picker.js"
+FRONTEND_FILE = Path(__file__).parent / "frontend" / "protege-picker.js"
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    """Set up integration-level frontend resources."""
+    await hass.http.async_register_static_paths(
+        [
+            StaticPathConfig(
+                FRONTEND_URL,
+                str(FRONTEND_FILE),
+                cache_headers=False,
+            )
+        ]
+    )
+
+    integration = await async_get_integration(hass, DOMAIN)
+    add_extra_js_url(hass, f"{FRONTEND_URL}?v={integration.version}")
     return True
 
 
