@@ -32,9 +32,11 @@ On **Protege WX**, optional WX web-operator credentials can also be configured. 
 * **💡 Outputs**
   * Turn PGMs and other outputs On/Off.
 * **🧭 Manage Protege Entities**
-  * One central menu for search, selection/removal, manual addition and renaming.
-  * Four multi-select lists for Doors, Areas, Inputs and Outputs.
-  * Existing configured records are preselected.
+  * One central menu for search, bulk addition, selection/removal, manual addition and renaming.
+  * **Bulk Add Entities** lets you choose one record type, optionally filter by name or ID, then tick multiple records and add them in one operation.
+  * Bulk Add supports **Select all matching records** and **Select none** controls.
+  * Four multi-select lists remain available for full Doors, Areas, Inputs and Outputs management.
+  * Existing configured records are preselected in the full selection/removal screen.
   * Searching does **not** automatically enable every discovered record.
   * Clearing a selected record removes it from Home Assistant after confirmation.
   * Manual addition remains available when discovery cannot find a record.
@@ -90,7 +92,7 @@ The **Service PIN is not the WX web password**, and the WX operator account is n
 
 ### Discovery order
 
-On Protege WX, **Search / Refresh Controller** uses this order:
+On Protege WX, **Search / Refresh Controller** and **Bulk Add Entities** use this order:
 
 ```text
 1. Authenticated WX database list lookup using the saved WX web operator
@@ -132,7 +134,7 @@ Once a selected record's programmed name has been saved in Home Assistant, that 
 2. Go to **Integrations → Custom repositories**.
 3. Add:
 
-   `https://github.com/JCalvi/ICT-Protege-Home-Assistant`
+   `https://github.com/JCalvi/ICT-Protege-Enhanced`
 
 4. Select **Integration** as the repository type.
 5. Download the integration.
@@ -185,6 +187,7 @@ Entity configuration is centred on:
 The menu contains:
 
 * **Search / Refresh Controller**
+* **Bulk Add Entities**
 * **Select / Remove Entities**
 * **Manually Add Entity**
 * **Rename Entity**
@@ -209,6 +212,46 @@ Source: WX database (operator login) search complete (6 doors, 6 areas, 63 input
 ```
 
 If WX credentials are not configured, or the lookup fails, the source line identifies the Automation Service fallback instead.
+
+### Bulk Add Entities
+
+Use **Bulk Add Entities** when you want to add several records of one type without selecting them one at a time from the normal searchable picker.
+
+First choose the record type:
+
+```text
+Door
+Area
+Input
+Output
+```
+
+You can then enter an optional case-insensitive filter that matches either the database ID or programmed name. For example:
+
+```text
+Record Type: Input
+Filter: PIR
+```
+
+This produces a checkbox list containing only matching, currently unconfigured inputs, for example:
+
+```text
+☐ 21 — PIR Reception
+☐ 22 — PIR Boardroom
+☐ 24 — PIR Entrance
+☐ 23 — PIR Central Stairwell
+...
+```
+
+The bulk-selection page provides:
+
+* **Select all matching records** — adds every record currently shown by the filter when the form is submitted.
+* **Select none (add nothing)** — leaves the existing configuration unchanged.
+* Individual checkboxes — tick any combination of matching records and submit once.
+
+Already configured records are excluded from the Bulk Add list so this operation only adds records; it never removes existing entities. Use **Select / Remove Entities** for removals.
+
+Because Home Assistant's standard options-flow controls do not provide live Ctrl/Shift range selection or per-row action buttons, Bulk Add uses the native checkbox-list control for maximum compatibility with future Home Assistant frontend updates.
 
 ### Select / Remove Entities
 
@@ -325,7 +368,7 @@ Otherwise use the actual Protege database record IDs.
 
 The saved WX operator account authenticated successfully and the controller's database lists were used. This is the authoritative source for current record IDs and programmed names.
 
-**Search falls back to Automation Service**
+**Search or Bulk Add falls back to Automation Service**
 
 Either WX operator credentials are not configured or the authenticated WX lookup failed. The fallback scan can still discover records, but it is not an authoritative WX database inventory and may show generic names or incomplete counts when database IDs are sparse.
 
