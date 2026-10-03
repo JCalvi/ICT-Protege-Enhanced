@@ -35,9 +35,10 @@
       },
       "manage_entities": {
         "title": "Manage Protege Entities",
-        "description": "Search the controller to discover and bulk-add records, review or remove configured records, manually add a database ID, or rename an existing entity.",
+        "description": "Search the controller to discover and add records, review or remove configured records, manually add a database ID, or rename an existing entity.",
         "menu_options": {
           "manage_search": "Search / Refresh Controller",
+          "scan_results": "Return to Last Scan Results",
           "manage_select": "Select / Remove Entities",
           "manual_add": "Manually Add Entity",
           "edit_device": "Rename Entity",
@@ -46,7 +47,7 @@
       },
       "manage_search": {
         "title": "Search / Refresh Controller",
-        "description": "On Protege WX, configured WX web-operator credentials are used to retrieve the authoritative database record lists and programmed names. If WX credentials are not configured or the lookup fails, Automation Service probing is used as a fallback. The scan runs once; the next screen lets you choose Doors, Areas, Inputs or Outputs and bulk-add from those cached results.",
+        "description": "On Protege WX, configured WX web-operator credentials are used to retrieve the authoritative database record lists and programmed names. If WX credentials are not configured or the lookup fails, Automation Service probing is used as a fallback. The scan runs once and the results remain available while this configuration session is open.",
         "data": {
           "limit_doors": "Highest Door ID to Scan (Automation fallback only)",
           "limit_areas": "Highest Area ID to Scan (Automation fallback only)",
@@ -56,28 +57,22 @@
       },
       "scan_results": {
         "title": "Controller Scan Results",
-        "description": "Source: {source}\n\n{counts}\n\nChoose a record type to filter and bulk-add unconfigured records from this scan. No additional controller scan is performed.",
+        "description": "Source: {source}\n\n{counts}\n\nChoose Doors, Areas, Inputs or Outputs. Additions are staged and you return here after each add, so several record types can be added from this one scan. Choose Save Changes & Finish when done.",
         "menu_options": {
           "scan_doors": "Doors",
           "scan_areas": "Areas",
           "scan_inputs": "Inputs",
           "scan_outputs": "Outputs",
+          "scan_finish": "Save Changes & Finish",
           "manage_entities": "Back to Manage Protege Entities"
         }
       },
-      "scan_filter": {
-        "title": "Filter Scan Results",
-        "description": "{record_type}s: {total} found in the scan, {configured} already configured, {available} available to add. Optionally filter by database ID or programmed name, for example PIR.",
-        "data": {
-          "filter": "Filter (optional)"
-        }
-      },
       "scan_select": {
-        "title": "Add Scan Results",
-        "description": "{record_type}s: {count} matching unconfigured records. Filter: {filter}. Source: {source}. Tick individual records, or use Select all matching records. Select none adds nothing and leaves the current configuration unchanged.",
+        "title": "Add {record_type}s",
+        "description": "{count} unconfigured {record_type} records are available from the cached scan. Open Records to add to see the full list; type in the picker's search box to filter it live (for example PIR), then select as many records as required. Submit returns to Controller Scan Results so you can add another type. Select all adds every available record of this type and is not limited by the picker search text. Source: {source}.",
         "data": {
-          "select_all": "Select all matching records",
-          "select_none": "Select none (add nothing)",
+          "select_all": "Select all available records (ignores search text)",
+          "select_none": "Select none / back to scan results",
           "items": "Records to add"
         }
       },
@@ -191,8 +186,7 @@
       "invalid_auth": "Service PIN rejected.",
       "wx_auth": "Protege WX operator login failed. The credentials were not saved.",
       "invalid_selection": "The submitted selection contained an invalid or unavailable record ID.",
-      "no_scan_matches": "No unconfigured records matched that record type and filter.",
-      "no_selection": "Select at least one record, or choose Select all matching records.",
+      "no_selection": "Select at least one record, or choose Select all or Select none.",
       "selection_conflict": "Select all and Select none cannot both be enabled.",
       "yaml_error": "The YAML configuration is invalid."
     },
