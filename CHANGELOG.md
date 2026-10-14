@@ -4,6 +4,15 @@ All notable changes to this fork will be documented in this file.
 
 This project is forked from the original [`caboose014/ICT-Protege-Home-Assistant`](https://github.com/caboose014/ICT-Protege-Home-Assistant) integration by **caboose014**. Earlier history belongs to the upstream project; entries below document changes made in this fork.
 
+## 3.5.2 - 2026-10-15
+
+### Added
+- DEBUG-level polling summaries, valid configured status-response confirmations (rate-limited), and watchdog response-age diagnostics to support overnight idle testing.
+- TCP connection failure warnings with the underlying error.
+
+### Notes
+- No protocol or watchdog threshold changes in this release; diagnostics are intended to validate the 3.5.1 reliability changes on live hardware.
+
 ## 3.5.1 - 2026-10-15
 
 ### Fixed
