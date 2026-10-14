@@ -31,6 +31,7 @@ class ICTClient:
         self._listener_task = None
         self._last_received = 0.0
         self._last_status_response = 0.0
+        self._last_status_debug = 0.0
         self._connection_generation = 0
 
     def register_callback(self, callback):
@@ -98,6 +99,8 @@ class ICTClient:
                     self._connection_generation += 1
                     self._last_received = loop.time()
                     self._last_status_response = loop.time()
+                    self._last_status_debug = 0.0
+                    _LOGGER.debug('ICT connected; monitoring %d records', len(self.monitored_items))
                     self._listener_task = asyncio.create_task(self._listen())
                     await asyncio.sleep(1)
                     if self._connected:
@@ -106,6 +109,7 @@ class ICTClient:
                 else:
                     await asyncio.sleep(15)
                     if self._connected:
+                        _LOGGER.debug('ICT watchdog: %.0fs since valid configured status response', loop.time() - self._last_status_response)
                         # A successful TCP write alone does not establish that
                         # the controller is still returning data.
                         if self.monitored_items and loop.time() - self._last_status_response > 180:
@@ -122,6 +126,7 @@ class ICTClient:
 
     async def _poll_once(self):
         """Refresh every configured record, independently of subscriptions."""
+        _LOGGER.debug('ICT polling: requesting %d configured records', len(self.monitored_items))
         for _, group, idx in self.monitored_items:
             if not self._connected or self._shutdown:
                 return
@@ -147,7 +152,9 @@ class ICTClient:
             )
             self._connected = True
             return True
-        except Exception: return False
+        except Exception as exc:
+            _LOGGER.warning('ICT TCP connection failed: %s', exc)
+            return False
 
     async def _update_monitoring(self):
         if not self.monitored_items: return
@@ -329,7 +336,11 @@ class ICTClient:
             if (len(body) >= 4 and
                     (0x00, type_h, struct.unpack_from('<I', body)[0]) in self.monitored_items and
                     type_h in (1, 2, 3, 4, 6)):
-                self._last_status_response = asyncio.get_running_loop().time()
+                now = asyncio.get_running_loop().time()
+                self._last_status_response = now
+                if now - self._last_status_debug >= 55:
+                    _LOGGER.debug('ICT valid configured status: group=%d id=%d (unchanged values count)', type_h, struct.unpack_from('<I', body)[0])
+                    self._last_status_debug = now
             self._notify_update(type_l, type_h, body)
             i += 3 + length
 
