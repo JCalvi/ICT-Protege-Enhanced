@@ -4,6 +4,20 @@ All notable changes to this fork will be documented in this file.
 
 This project is forked from the original [`caboose014/ICT-Protege-Home-Assistant`](https://github.com/caboose014/ICT-Protege-Home-Assistant) integration by **caboose014**. Earlier history belongs to the upstream project; entries below document changes made in this fork.
 
+## 3.5.1 - 2026-10-15
+
+### Fixed
+- Keep the connection supervisor and periodic polling tasks running when the controller TCP connection drops; reconnect automatically instead of requiring an integration reload.
+- Restore monitoring subscriptions and request fresh record states after reconnecting.
+- Refresh configured status records every 60 seconds, including when their values have not changed.
+- Reconnect when no valid configured status response is observed for 180 seconds, rather than treating arbitrary incoming TCP bytes as proof of health.
+- Improve logging for listener, polling, and connection failures.
+- Separate normal integration shutdown from unexpected socket disconnection.
+
+### Notes
+- This release has not yet been verified against a live controller after an overnight idle period.
+- The 180-second watchdog requires the controller to return status records to periodic status requests; repeated reconnects indicate that response matching or controller settings require further investigation.
+
 ## 3.5.0 - 2026-10-03
 
 ### Changed
