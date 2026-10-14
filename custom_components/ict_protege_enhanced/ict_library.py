@@ -30,6 +30,7 @@ class ICTClient:
         self._tasks = []
         self._listener_task = None
         self._last_received = 0.0
+        self._last_status_response = 0.0
         self._connection_generation = 0
 
     def register_callback(self, callback):
@@ -96,6 +97,7 @@ class ICTClient:
                         continue
                     self._connection_generation += 1
                     self._last_received = loop.time()
+                    self._last_status_response = loop.time()
                     self._listener_task = asyncio.create_task(self._listen())
                     await asyncio.sleep(1)
                     if self._connected:
@@ -106,8 +108,8 @@ class ICTClient:
                     if self._connected:
                         # A successful TCP write alone does not establish that
                         # the controller is still returning data.
-                        if loop.time() - self._last_received > 180:
-                            _LOGGER.warning("ICT controller silent for 180s; reconnecting")
+                        if self.monitored_items and loop.time() - self._last_status_response > 180:
+                            _LOGGER.warning("No valid ICT status response for 180s; reconnecting")
                             await self.disconnect()
                         else:
                             await self._send_raw(0x00, 0x00, b'')
@@ -322,6 +324,12 @@ class ICTClient:
             length = data[i+2]
             body = data[i+3 : i+3+length]
             if type_l == 0xFF and type_h == 0xFF: break
+            # A valid configured status record confirms the controller is
+            # responding to monitoring/polling, even if its state is unchanged.
+            if (len(body) >= 4 and
+                    (0x00, type_h, struct.unpack_from('<I', body)[0]) in self.monitored_items and
+                    type_h in (1, 2, 3, 4, 6)):
+                self._last_status_response = asyncio.get_running_loop().time()
             self._notify_update(type_l, type_h, body)
             i += 3 + length
 
