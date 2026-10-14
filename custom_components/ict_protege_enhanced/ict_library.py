@@ -28,6 +28,9 @@ class ICTClient:
         self._login_event = asyncio.Event()
         self._login_success = False
         self._tasks = []
+        self._listener_task = None
+        self._last_received = 0.0
+        self._connection_generation = 0
 
     def register_callback(self, callback):
         self._callbacks.append(callback)
@@ -44,8 +47,10 @@ class ICTClient:
 
     async def start(self):
         self._shutdown = False
-        self._tasks.append(asyncio.create_task(self._supervisor_loop()))
-        self._tasks.append(asyncio.create_task(self._safety_poll_loop()))
+        self._tasks = [
+            asyncio.create_task(self._supervisor_loop()),
+            asyncio.create_task(self._safety_poll_loop()),
+        ]
 
     async def start_temp_connection(self):
         try:
@@ -74,35 +79,64 @@ class ICTClient:
     async def stop(self):
         self._shutdown = True
         await self.disconnect()
+        for task in self._tasks:
+            task.cancel()
+        await asyncio.gather(*self._tasks, return_exceptions=True)
+        self._tasks.clear()
 
     async def _supervisor_loop(self):
+        """Own the connection lifecycle; never cancel this task on socket failure."""
+        loop = asyncio.get_running_loop()
         while not self._shutdown:
-            if not self._connected:
-                _LOGGER.info("Attempting connection to ICT Controller...")
-                if await self._connect_socket():
-                    _LOGGER.info("Connected!")
-                    self._tasks.append(asyncio.create_task(self._listen()))
+            try:
+                if not self._connected:
+                    _LOGGER.info("Connecting to ICT controller %s:%s", self.host, self.port)
+                    if not await self._connect_socket():
+                        await asyncio.sleep(10)
+                        continue
+                    self._connection_generation += 1
+                    self._last_received = loop.time()
+                    self._listener_task = asyncio.create_task(self._listen())
                     await asyncio.sleep(1)
-                    await self._update_monitoring()
+                    if self._connected:
+                        await self._update_monitoring()
+                        await self._poll_once()
                 else:
-                    await asyncio.sleep(10)
-            else:
-                await asyncio.sleep(15)
-                if self._connected:
-                    try: await self._send_raw(0x00, 0x00, b'')
-                    except: await self.disconnect()
+                    await asyncio.sleep(15)
+                    if self._connected:
+                        # A successful TCP write alone does not establish that
+                        # the controller is still returning data.
+                        if loop.time() - self._last_received > 180:
+                            _LOGGER.warning("ICT controller silent for 180s; reconnecting")
+                            await self.disconnect()
+                        else:
+                            await self._send_raw(0x00, 0x00, b'')
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                _LOGGER.exception("ICT connection supervisor error")
+                await self.disconnect()
+                await asyncio.sleep(10)
+
+    async def _poll_once(self):
+        """Refresh every configured record, independently of subscriptions."""
+        for _, group, idx in self.monitored_items:
+            if not self._connected or self._shutdown:
+                return
+            await self._send_raw(group, 0x80, struct.pack('<I', idx))
+            await asyncio.sleep(0.1)
 
     async def _safety_poll_loop(self):
         while not self._shutdown:
-            await asyncio.sleep(60)
-            if self._connected and self.monitored_items:
-                for (type_h, type_l, idx) in self.monitored_items:
-                    if type_l in [1, 2, 3, 4, 6]:
-                        idx_bytes = struct.pack('<I', idx)
-                        try:
-                            await self._send_raw(type_l, 0x80, idx_bytes)
-                            await asyncio.sleep(0.1)
-                        except: break
+            try:
+                await asyncio.sleep(60)
+                if self._connected and self.monitored_items:
+                    await self._poll_once()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                _LOGGER.exception("ICT safety poll failed")
+                await self.disconnect()
 
     async def _connect_socket(self):
         try:
@@ -181,7 +215,8 @@ class ICTClient:
         except: return False
 
     async def _send_raw(self, group, sub, data):
-        if not self._writer: return
+        if not self._connected or not self._writer:
+            raise ConnectionError('ICT controller is disconnected')
         payload = bytearray([group, sub]) + data
         wrapper = bytearray([0x00, 0x00]) + payload
         length = 5 + len(wrapper)
@@ -190,7 +225,10 @@ class ICTClient:
         try:
             self._writer.write(full)
             await self._writer.drain()
-        except: await self.disconnect()
+        except (OSError, ConnectionError, asyncio.TimeoutError) as exc:
+            _LOGGER.warning('ICT send failed: %s', exc)
+            await self.disconnect()
+            raise
 
     async def _listen(self):
         buffer = bytearray()
@@ -200,6 +238,7 @@ class ICTClient:
                 if not chunk:
                     await self.disconnect()
                     break
+                self._last_received = asyncio.get_running_loop().time()
                 buffer.extend(chunk)
                 while len(buffer) > 4:
                     if buffer[0] != 0x49 or buffer[1] != 0x43:
@@ -210,7 +249,10 @@ class ICTClient:
                     packet = buffer[:length]
                     del buffer[:length]
                     self._handle_packet(packet)
-            except:
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                _LOGGER.exception('ICT listener failed')
                 await self.disconnect()
                 break
 
@@ -307,10 +349,18 @@ class ICTClient:
         except: pass
 
     async def disconnect(self):
-        for t in self._tasks:
-            if not t.done(): t.cancel()
-        if self._writer:
-            self._writer.close()
-            try: await self._writer.wait_closed()
-            except: pass
+        """Close the socket without killing supervisor or polling tasks."""
         self._connected = False
+        listener = self._listener_task
+        self._listener_task = None
+        if listener is not None and listener is not asyncio.current_task():
+            listener.cancel()
+        writer = self._writer
+        self._writer = None
+        self._reader = None
+        if writer is not None:
+            writer.close()
+            try:
+                await asyncio.wait_for(writer.wait_closed(), timeout=3)
+            except (OSError, ConnectionError, asyncio.TimeoutError):
+                pass
