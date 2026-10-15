@@ -4,6 +4,20 @@ All notable changes to this fork will be documented in this file.
 
 This project is forked from the original [`caboose014/ICT-Protege-Home-Assistant`](https://github.com/caboose014/ICT-Protege-Home-Assistant) integration by **caboose014**. Earlier history belongs to the upstream project; entries below document changes made in this fork.
 
+## 3.6.0 - 2026-10-15
+
+### Added
+- Controller Online connectivity binary sensor, ON only after a valid configured controller status response; OFF during connection loss and reconnection.
+- Communication availability tracking for all configured doors, areas, inputs, trouble sensors, outputs and bypass controls. Entities become unavailable when controller communication is lost, rather than retaining stale states as if current.
+- Automatic availability restoration after a valid controller response.
+- Unregister entity callbacks on removal to prevent stale callback registrations across reloads.
+
+### Notes
+- Controller Online remains available while offline so its state can report OFF.
+- Initial entity states are unavailable until the first validated controller status response.
+- Communication loss is detected immediately for closed sockets or after the existing 180-second valid-response watchdog timeout for silent connections.
+- Hardware validation is required before relying on the offline status for critical automations.
+
 ## 3.5.2 - 2026-10-15
 
 ### Added
