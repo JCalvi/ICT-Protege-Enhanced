@@ -77,7 +77,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Remove orphaned entities no longer present in the integration config.
     ent_reg = er.async_get(hass)
-    valid_unique_ids = set()
+    valid_unique_ids = {"ict_controller_online"}
 
     for door_id in door_ids:
         valid_unique_ids.add(f"ict_door_{door_id}")
