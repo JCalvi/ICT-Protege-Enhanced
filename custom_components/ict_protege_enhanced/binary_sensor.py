@@ -21,6 +21,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         name = effective_name("Door", dev_id, record)
         entities.append(ICTInput(client, dev_id, name, "door"))
 
+    entities.append(ICTControllerOnline(client))
     async_add_entities(entities)
 
 
@@ -49,6 +50,19 @@ class ICTInput(BinarySensorEntity):
 
     async def async_added_to_hass(self):
         self._client.register_callback(self._handle_update)
+        self._client.register_connection_callback(self._handle_connection_update)
+
+    async def async_will_remove_from_hass(self):
+        self._client.unregister_callback(self._handle_update)
+        self._client.unregister_connection_callback(self._handle_connection_update)
+
+    @property
+    def available(self):
+        return self._client.online
+
+    @callback
+    def _handle_connection_update(self, online):
+        self.async_write_ha_state()
 
     @callback
     def _handle_update(self, update):
@@ -64,3 +78,34 @@ class ICTInput(BinarySensorEntity):
     @property
     def is_on(self):
         return self._is_on
+
+
+class ICTControllerOnline(BinarySensorEntity):
+    """Connection health based on validated controller status traffic."""
+
+    _attr_name = "Controller Online"
+    _attr_unique_id = "ict_controller_online"
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+    _attr_device_info = controller_device_info()
+
+    def __init__(self, client):
+        self._client = client
+
+    @property
+    def is_on(self):
+        return self._client.online
+
+    @property
+    def available(self):
+        # A disconnected controller is an OFF state, not an unavailable sensor.
+        return True
+
+    async def async_added_to_hass(self):
+        self._client.register_connection_callback(self._handle_connection_update)
+
+    async def async_will_remove_from_hass(self):
+        self._client.unregister_connection_callback(self._handle_connection_update)
+
+    @callback
+    def _handle_connection_update(self, online):
+        self.async_write_ha_state()
