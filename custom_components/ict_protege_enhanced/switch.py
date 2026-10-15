@@ -27,6 +27,19 @@ class ICTOutput(SwitchEntity):
 
     async def async_added_to_hass(self):
         self._client.register_callback(self._handle_update)
+        self._client.register_connection_callback(self._handle_connection_update)
+
+    async def async_will_remove_from_hass(self):
+        self._client.unregister_callback(self._handle_update)
+        self._client.unregister_connection_callback(self._handle_connection_update)
+
+    @property
+    def available(self):
+        return self._client.online
+
+    @callback
+    def _handle_connection_update(self, online):
+        self.async_write_ha_state()
 
     @callback
     def _handle_update(self, update):
