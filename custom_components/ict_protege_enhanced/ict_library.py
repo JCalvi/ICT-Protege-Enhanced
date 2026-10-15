@@ -20,6 +20,8 @@ class ICTClient:
         self._lock = asyncio.Lock()
         self.monitored_items = []
         self._callbacks = []
+        self._connection_callbacks = []
+        self._online = False
         self._shutdown = False
         self._scan_response = None
         self._scan_event = asyncio.Event()
@@ -36,6 +38,33 @@ class ICTClient:
 
     def register_callback(self, callback):
         self._callbacks.append(callback)
+
+    @property
+    def online(self):
+        """True only after a valid configured controller status response."""
+        return self._online
+
+    def register_connection_callback(self, callback):
+        self._connection_callbacks.append(callback)
+
+    def unregister_callback(self, callback):
+        if callback in self._callbacks:
+            self._callbacks.remove(callback)
+
+    def unregister_connection_callback(self, callback):
+        if callback in self._connection_callbacks:
+            self._connection_callbacks.remove(callback)
+
+    def _set_online(self, online):
+        if self._online == online:
+            return
+        self._online = online
+        _LOGGER.info("ICT controller %s", "online" if online else "offline")
+        for callback in tuple(self._connection_callbacks):
+            try:
+                callback(online)
+            except Exception:
+                _LOGGER.exception("ICT connection callback failed")
 
     # UPDATED: 4 Arguments Only
     def set_configuration(self, doors, areas, inputs, outputs):
@@ -151,6 +180,7 @@ class ICTClient:
                 asyncio.open_connection(self.host, self.port), timeout=10.0
             )
             self._connected = True
+            self._set_online(False)
             return True
         except Exception as exc:
             _LOGGER.warning('ICT TCP connection failed: %s', exc)
@@ -338,6 +368,7 @@ class ICTClient:
                     type_h in (1, 2, 3, 4, 6)):
                 now = asyncio.get_running_loop().time()
                 self._last_status_response = now
+                self._set_online(True)
                 if now - self._last_status_debug >= 55:
                     _LOGGER.debug('ICT valid configured status: group=%d id=%d (unchanged values count)', type_h, struct.unpack_from('<I', body)[0])
                     self._last_status_debug = now
@@ -370,6 +401,7 @@ class ICTClient:
     async def disconnect(self):
         """Close the socket without killing supervisor or polling tasks."""
         self._connected = False
+        self._set_online(False)
         listener = self._listener_task
         self._listener_task = None
         if listener is not None and listener is not asyncio.current_task():
